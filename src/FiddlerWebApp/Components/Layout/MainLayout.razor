@@ -15,8 +15,7 @@
     {
         if (firstRender)
         {
-            await Theme.SetThemeAsync(ThemeMode.Light);
-            await Theme.SetThemeAsync("#087f79", true);
+            await Theme.SetThemeAsync(new ThemeSettings("#087f79", 0, 0, ThemeMode.Light, true));
         }
     }
 }

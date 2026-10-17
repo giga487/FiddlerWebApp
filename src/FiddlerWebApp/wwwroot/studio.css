@@ -1,6 +1,8 @@
 :root { font-family:'Segoe UI',system-ui,sans-serif;color:#172c35;background:#f4f6f7;font-size:14px;--accent:#087f79 }
 body, .studio { background:#f4f6f7;color:#172c35 }
 .studio h1, .studio h2, .studio h3, .studio dd, .studio strong { color:#172c35 }
+.sidebar h1 { font-size:22px;line-height:1.3;margin:10px 0 0 }
+.sidebar h1:focus { outline:none }
 * { box-sizing:border-box } body { margin:0 } button,input,select { font:inherit } button,select { cursor:pointer } button:disabled { cursor:default;opacity:.5 } a { color:var(--accent) } :focus-visible { outline:3px solid #31b9ac;outline-offset:3px }
 .app-header { min-height:68px;background:#122c35;color:white;display:flex;align-items:center;gap:32px;padding:12px 28px }
 .brand { color:white;text-decoration:none;display:flex;align-items:center;gap:10px;font-size:22px;font-weight:650 }.brand-mark { display:grid;place-items:center;width:34px;height:34px;background:#20a193;border-radius:8px }.brand-web { font-size:10px;letter-spacing:1.8px;color:#a6c4ca;padding-left:4px }.project-label { font-size:10px;letter-spacing:2px;color:#9bb5bc;margin-left:auto }.read-only { font-size:11px;border:1px solid #4b6670;padding:5px 10px;border-radius:20px;color:#d4e6e9 }
