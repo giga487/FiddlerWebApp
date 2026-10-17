@@ -13,6 +13,8 @@ builder.Services.AddRazorComponents()
 builder.Services.AddFluentUIComponents();
 builder.Services.AddScoped<MulWorkspace>();
 builder.Services.AddScoped<AnimationWorkspace>();
+builder.Services.AddScoped<Fiddler.Graphics.Gumps.GumpComposition>();
+builder.Services.AddSingleton<Fiddler.Graphics.Gumps.GumpCompositionRenderer>();
 builder.Services.AddSingleton<SkiaAssetRenderer>();
 builder.Services.AddSingleton<AnimationRenderer>();
 builder.Services.AddSingleton<ClientDirectoryScanner>();

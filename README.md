@@ -136,6 +136,27 @@ di esportazione sono percorsi del server. Il confronto lavora sui pixel decodifi
 non sui byte compressi. Distingue uguali, diversi, solo attuale, solo riferimento
 e record non leggibili. Dettagli e limiti in [docs/gump-management.md](docs/gump-management.md).
 
+## Composizione Gump sulla griglia
+
+Dal catalogo aprire **Componi Gump sulla griglia**, oppure `/gump/composizione`.
+Aggiungere i pezzi tramite ID decimale o esadecimale: ogni immagine viene
+posizionata nel primo spazio libero con origine agganciata alle celle, mantenendo
+le dimensioni originali. Sono ammesse più istanze dello stesso ID.
+La griglia e il piano sono configurabili, con zoom 50%, 100% e 200%.
+Selezionare un pezzo sul piano o nell'elenco per vedere ID, coordinate e dimensioni;
+spostarlo con X/Y oppure attivando **Sposta qui con un clic sul piano**.
+**Disponi senza sovrapposizioni** riordina i pezzi; il posizionamento manuale
+permette le sovrapposizioni necessarie ai layout. L'ultimo pezzo aggiunto è sopra.
+
+Il modello e il rendering SkiaSharp risiedono in `Fiddler.Graphics/Gumps`, senza
+dipendenze Blazor. La composizione resta nella sessione durante la navigazione
+interna; non è salvata su disco e non modifica gli archivi. Le immagini sono
+istantanee: dopo una modifica nel workspace, usare **Aggiorna immagine dal workspace**
+su ogni istanza interessata. Non viene dedotto il layout originale del gioco.
+Limiti: piano massimo 2048 × 2048 px, celle da 4 a 256 px, 128 pezzi e 16 milioni
+di pixel complessivi. Un ridimensionamento senza spazio sufficiente conserva
+la composizione precedente.
+
 ## Verifica
 
 ```powershell

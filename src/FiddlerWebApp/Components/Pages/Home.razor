@@ -13,6 +13,7 @@
         <div class="source-name">@Workspace.DisplayName</div>
         <a class="configure-link" href="/configurazione">Configura cartella e verifica file</a>
         <a class="configure-link" href="/gump/gestione">Importa e confronta Gump</a>
+        <a class="configure-link" href="/gump/composizione">Componi Gump sulla griglia</a>
         @if (Workspace.Gumps?.HasChanges == true) { <p class="muted">@Workspace.Gumps.DirtyCount Gump in bozza</p> }
         <div class="section-label collection-label">COLLEZIONI</div>
         <nav class="collections" aria-label="Collezioni MUL">
@@ -87,6 +88,7 @@
                 <dt>Offset archivio</dt><dd>@(kind == AssetKind.Gump && Workspace.Gumps?.IsModified(selected.Id) == true ? "Bozza" : selected.Offset < 0 ? "—" : selected.Offset.ToString("N0"))</dd><dt>Record</dt><dd>@selected.Length.ToString("N0") byte</dd></dl>
             <p class="muted inspector-footnote">Trasparenza originale · ingrandimento senza interpolazione.</p>
             @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/gestione?id={selected.Id}")">Importa o confronta questo ID</a> }
+            @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/composizione?id={selected.Id}")">Usa nella composizione</a> }
         }
     </aside>
 </div>
