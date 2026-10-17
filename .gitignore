@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+.vs/
+TestResults/
+*.user
+*.log
+appsettings.Local.json
+*.mul
+*.idx
+*.uop
+*.png
+*.zip
+

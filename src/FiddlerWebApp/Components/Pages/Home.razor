@@ -1,0 +1,165 @@
+@page "/"
+@inject MulWorkspace Workspace
+@inject SkiaAssetRenderer Renderer
+@inject IConfiguration Configuration
+
+<PageTitle>Archivio MUL · Fiddler</PageTitle>
+<div class="studio">
+    <aside class="sidebar">
+        <div class="section-label">WORKSPACE</div><h1>Archivio MUL</h1>
+        <p class="muted">Esplora la grafica del client.</p>
+        <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Open" Disabled="busy">Apri archivio</FluentButton>
+        <div class="source-name">@Workspace.DisplayName</div>
+        <div class="section-label collection-label">COLLEZIONI</div>
+        <nav class="collections" aria-label="Collezioni MUL">
+            @foreach (var collection in Enum.GetValues<AssetKind>())
+            {
+                <button class="collection @(kind == collection ? "active" : "")" disabled="@busy"
+                        aria-pressed="@(kind == collection)" @onclick="() => ChangeKind(collection)">
+                    <span>@Label(collection)</span><span class="count">@Workspace.Entries(collection).Count.ToString("N0")</span>
+                </button>
+            }
+        </nav>
+        <div class="sidebar-note"><span class="status-dot"></span> Rendering SkiaSharp<br /><span class="muted">File originali aperti in sola lettura.</span></div>
+    </aside>
+    <section class="browser" aria-label="Catalogo asset">
+        <div class="browser-heading"><div><div class="section-label">LIBRERIA DEL CLIENT</div><h2>@Label(kind)</h2></div><span class="format-badge">MUL / IDX</span></div>
+        @if (error is not null) { <div class="notice error" role="alert">@error</div> }
+        @if (!Workspace.IsOpen)
+        {
+            <div class="empty-state"><div class="empty-symbol">◇</div><h2>La tua libreria, nel browser</h2>
+                <p>Apri la cartella dati configurata per esplorare terreni, oggetti e gump.</p>
+                <div class="supported"><span>art.mul + artidx.mul</span><span>gumpart.mul + gumpidx.mul</span></div>
+                <p class="muted">Le anteprime vengono generate sul server con SkiaSharp.</p>
+            </div>
+        }
+        else
+        {
+            <form class="search-bar" @onsubmit="Search" @onsubmit:preventDefault>
+                <label for="asset-id">Cerca ID</label><input id="asset-id" placeholder="Es. 1234 oppure 0x04D2" @bind="query" disabled="@busy" />
+                <button class="search-submit" type="submit" disabled="@busy">Cerca</button>
+                <FluentButton OnClick="ResetSearch" Disabled="busy">Tutti</FluentButton>
+            </form>
+            <div class="results-summary" aria-live="polite">@filtered.Count.ToString("N0") risorse · @Workspace.DisplayName</div>
+            @if (filtered.Count == 0)
+            {
+                <div class="empty-state"><h3>Nessuna risorsa trovata</h3><p>Verifica l'ID o seleziona un'altra collezione.</p></div>
+            }
+            else
+            {
+                <div class="asset-grid">
+                    @foreach (var tile in tiles)
+                    {
+                        <button class="asset-tile @(selected?.Id == tile.Entry.Id ? "selected" : "")" @onclick="() => Select(tile.Entry)"
+                                aria-label="@($"Apri {Label(kind)} ID 0x{tile.Entry.Id:X4}")" aria-pressed="@(selected?.Id == tile.Entry.Id)">
+                            <span class="thumbnail checker">
+                                @if (tile.Image is not null) { <img src="@tile.Image" alt="" width="@tile.Width" height="@tile.Height" /> }
+                                else { <span class="invalid-label" title="@tile.Error">Record non valido</span> }
+                            </span>
+                            <span class="tile-caption"><strong>@($"0x{tile.Entry.Id:X4}")</strong><span>@tile.Entry.Id</span></span>
+                        </button>
+                    }
+                </div>
+                <div class="pagination"><FluentButton OnClick="Previous" Disabled="@(busy || page == 0)">Precedente</FluentButton>
+                    <span>Pagina @(page + 1) di @PageCount</span><FluentButton OnClick="Next" Disabled="@(busy || page + 1 >= PageCount)">Successiva</FluentButton></div>
+            }
+        }
+    </section>
+    <aside class="inspector" aria-label="Anteprima della risorsa">
+        <div class="section-label">INSPECTOR</div><h2>Anteprima</h2>
+        @if (selected is null)
+        {
+            <div class="inspector-empty">Seleziona una risorsa<br />per visualizzarla qui.</div>
+        }
+        else
+        {
+            <div class="preview-toolbar"><label for="zoom">Zoom</label><select id="zoom" @bind="zoom"><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option></select></div>
+            <div class="preview checker">
+                @if (preview is not null) { <img src="@preview" alt="@($"Anteprima {Label(kind)}, ID {selected.Id}")" style="width:@(selectedWidth * zoom)px;height:@(selectedHeight * zoom)px" /> }
+                else { <p class="notice error" role="alert">@previewError</p> }
+            </div>
+            <dl class="metadata"><dt>ID esadecimale</dt><dd>@($"0x{selected.Id:X4}")</dd><dt>ID decimale</dt><dd>@selected.Id</dd>
+                <dt>Dimensioni</dt><dd>@(preview is null ? "—" : $"{selectedWidth} × {selectedHeight} px")</dd>
+                <dt>Offset MUL</dt><dd>@selected.Offset.ToString("N0")</dd><dt>Record</dt><dd>@selected.Length.ToString("N0") byte</dd></dl>
+            <p class="muted inspector-footnote">Trasparenza originale · ingrandimento senza interpolazione.</p>
+        }
+    </aside>
+</div>
+
+@code {
+    private const int PageSize = 24;
+    private AssetKind kind = AssetKind.Item;
+    private IReadOnlyList<MulEntry> filtered = [];
+    private readonly List<Tile> tiles = [];
+    private MulEntry? selected;
+    private string query = "", appliedQuery = "";
+    private string? error, preview, previewError;
+    private int page, selectedWidth, selectedHeight, zoom = 1;
+    private bool busy;
+    private int PageCount => Math.Max(1, (filtered.Count + PageSize - 1) / PageSize);
+    private sealed record Tile(MulEntry Entry, string? Image, int Width, int Height, string? Error);
+    private static string Label(AssetKind value) => value switch { AssetKind.Land => "Terreni", AssetKind.Item => "Oggetti", _ => "Gump" };
+
+    private async Task Open()
+    {
+        busy = true; error = null;
+        await Task.Yield();
+        try
+        {
+            Workspace.Open(Configuration["Mul:Directory"] ?? "");
+            if (Workspace.Entries(kind).Count == 0)
+                kind = Enum.GetValues<AssetKind>().FirstOrDefault(k => Workspace.Entries(k).Count > 0);
+            query = appliedQuery = "";
+            Refresh();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private void ChangeKind(AssetKind value) { kind = value; query = appliedQuery = ""; Refresh(); }
+    private void ResetSearch() { query = appliedQuery = ""; Refresh(); }
+    private void Search()
+    {
+        string input = query.Trim();
+        if (input.Length != 0 && !TryId(input, out _)) { error = "Inserisci un ID decimale oppure esadecimale con prefisso 0x."; return; }
+        appliedQuery = input; Refresh();
+    }
+    private static bool TryId(string input, out int id) => input.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+        ? int.TryParse(input[2..], System.Globalization.NumberStyles.AllowHexSpecifier, null, out id) && id >= 0
+        : int.TryParse(input, out id) && id >= 0;
+    private void Refresh()
+    {
+        error = null; page = 0; selected = null; preview = previewError = null;
+        var entries = Workspace.Entries(kind);
+        filtered = appliedQuery.Length == 0 ? entries : TryId(appliedQuery, out int id) ? entries.Where(e => e.Id == id).ToArray() : [];
+        LoadPage();
+    }
+    private void Previous() { page = Math.Max(0, page - 1); LoadPage(); }
+    private void Next() { page = Math.Min(PageCount - 1, page + 1); LoadPage(); }
+    private void LoadPage()
+    {
+        tiles.Clear();
+        foreach (var entry in filtered.Skip(page * PageSize).Take(PageSize))
+        {
+            try
+            {
+                var image = Workspace.Read(entry);
+                byte[] png = Renderer.RenderThumbnail(image);
+                double ratio = Math.Min(1, Math.Min(112d / image.Width, 96d / image.Height));
+                tiles.Add(new Tile(entry, DataUri(png), Math.Max(1, (int)(image.Width * ratio)), Math.Max(1, (int)(image.Height * ratio)), null));
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or KeyNotFoundException) { tiles.Add(new Tile(entry, null, 0, 0, ex.Message)); }
+        }
+    }
+    private void Select(MulEntry entry)
+    {
+        selected = entry; preview = previewError = null; zoom = 1;
+        try
+        {
+            var image = Workspace.Read(entry);
+            preview = DataUri(Renderer.RenderPng(image));
+            selectedWidth = image.Width; selectedHeight = image.Height;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or KeyNotFoundException) { previewError = ex.Message; }
+    }
+    private static string DataUri(byte[] png) => "data:image/png;base64," + Convert.ToBase64String(png);
+}
