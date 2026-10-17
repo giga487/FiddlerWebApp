@@ -13,6 +13,8 @@ builder.Services.AddRazorComponents()
 builder.Services.AddFluentUIComponents();
 builder.Services.AddScoped<MulWorkspace>();
 builder.Services.AddScoped<AnimationWorkspace>();
+builder.Services.AddScoped<WorldAssetWorkspace>();
+builder.Services.AddSingleton<Fiddler.Graphics.World.IsometricSceneRenderer>();
 builder.Services.AddScoped<Fiddler.Graphics.Gumps.GumpComposition>();
 builder.Services.AddSingleton<Fiddler.Graphics.Gumps.GumpCompositionRenderer>();
 builder.Services.AddSingleton<SkiaAssetRenderer>();
@@ -23,6 +25,11 @@ builder.Services.AddSingleton(new ClientDirectorySettings(
     builder.Configuration["Mul:Directory"] ?? ""));
 
 var app = builder.Build();
+
+app.UseRequestLocalization(new RequestLocalizationOptions()
+    .SetDefaultCulture("en-US")
+    .AddSupportedCultures("en-US")
+    .AddSupportedUICultures("en-US"));
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

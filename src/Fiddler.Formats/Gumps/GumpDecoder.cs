@@ -14,7 +14,7 @@ public static class GumpDecoder
         {
             long rowOffset = (long)BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(y * 4, 4)) * 4;
             if (rowOffset < tableLength || rowOffset > data.Length - 4)
-                throw new InvalidDataException("Offset gump fuori dal record.");
+                throw new InvalidDataException("Gump offset extends beyond the record.");
             int position = (int)rowOffset, x = 0;
             while (x < width)
             {
@@ -22,7 +22,7 @@ public static class GumpDecoder
                 int count = Word(data, position + 2);
                 position += 4;
                 if (count == 0 || count > width - x)
-                    throw new InvalidDataException("Run gump vuoto o oltre la larghezza della riga.");
+                    throw new InvalidDataException("Gump run is empty or exceeds the row width.");
                 if (color != 0)
                     pixels.AsSpan(y * width + x, count).Fill(Color(color));
                 x += count;

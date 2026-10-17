@@ -13,7 +13,8 @@ public sealed record ClientGroupResult(ClientFileGroup Definition, ClientGroupSt
     IReadOnlyList<ClientFileResult> Files, IReadOnlyList<string>? ActiveAlternative)
 {
     public bool CanView => Definition.ViewerSupported && Status == ClientGroupStatus.Available &&
-        (Definition.Name == "Gump" || Definition.Alternatives[0].All(name => Files.Any(file => file.Name == name && file.Usable)));
+        (Definition.Name == "Gump" || Definition.Name == "Multi" || Definition.Name.StartsWith("Map ", StringComparison.Ordinal) ||
+         Definition.Alternatives[0].All(name => Files.Any(file => file.Name == name && file.Usable)));
 }
 
 public sealed record ClientDirectoryReport(string Directory, DateTime ScannedUtc,
@@ -29,10 +30,10 @@ public sealed class ClientDirectoryScanner
     public ClientDirectoryReport Scan(string directory, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(directory) || !Path.IsPathFullyQualified(directory.Trim()))
-            throw new ArgumentException("Inserisci un percorso assoluto della cartella sul server.");
+            throw new ArgumentException("Enter an absolute folder path on the server.");
         string fullPath = Path.GetFullPath(directory.Trim());
         var folder = new DirectoryInfo(fullPath);
-        if (!folder.Exists) throw new DirectoryNotFoundException("La cartella non esiste o non è accessibile sul server.");
+        if (!folder.Exists) throw new DirectoryNotFoundException("The folder does not exist or is not accessible on the server.");
         var found = new Dictionary<string, List<FileInfo>>(StringComparer.OrdinalIgnoreCase);
         foreach (var file in folder.EnumerateFiles())
         {
@@ -53,7 +54,7 @@ public sealed class ClientDirectoryScanner
                 results.Any(file => file.Usable) ? ClientGroupStatus.Incomplete : ClientGroupStatus.Missing;
             if (active is not null)
                 results = results.Select(file => file.Status == ClientFileStatus.Missing
-                    ? file with { Status = ClientFileStatus.Alternative, Detail = "Coperto da un formato alternativo presente." }
+                    ? file with { Status = ClientFileStatus.Alternative, Detail = "Covered by an available alternative format." }
                     : file).ToArray();
             groups.Add(new ClientGroupResult(definition, status, Array.AsReadOnly(results), active));
         }
@@ -67,7 +68,7 @@ public sealed class ClientDirectoryScanner
         if (!found.TryGetValue(name, out var matches))
             return new(name, ClientFileStatus.Missing, null, null);
         if (matches.Count != 1)
-            return new(name, ClientFileStatus.Ambiguous, null, null, "Più file differiscono soltanto per maiuscole/minuscole.");
+            return new(name, ClientFileStatus.Ambiguous, null, null, "Multiple files differ only in letter case.");
         var file = matches[0];
         try
         {
@@ -77,15 +78,15 @@ public sealed class ClientDirectoryScanner
             bool index = name.EndsWith(".idx") || name is "artidx.mul" or "gumpidx.mul" or "texidx.mul" or
                 "lightidx.mul" or "soundidx.mul" || name.StartsWith("staidx") || name.StartsWith("stadifi");
             if (index && size % 12 != 0)
-                return new(name, ClientFileStatus.Invalid, size, file.LastWriteTimeUtc, "Indice non allineato a record di 12 byte.");
+                return new(name, ClientFileStatus.Invalid, size, file.LastWriteTimeUtc, "Index is not aligned to 12-byte records.");
             bool emptyAllowed = name.StartsWith("statics") || name.StartsWith("staidx") || name.StartsWith("stadif") ||
                 name.StartsWith("mapdif") || name.EndsWith(".def") || name.EndsWith(".txt");
             if (size == 0 && !emptyAllowed)
-                return new(name, ClientFileStatus.Empty, 0, file.LastWriteTimeUtc, "File presente ma vuoto.");
+                return new(name, ClientFileStatus.Empty, 0, file.LastWriteTimeUtc, "File exists but is empty.");
             return new(name, ClientFileStatus.Present, size, file.LastWriteTimeUtc,
-                size == 0 ? "Vuoto: ammesso per questa risorsa opzionale." : null);
+                size == 0 ? "Empty: allowed for this optional resource." : null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        { return new(name, ClientFileStatus.Unreadable, null, null, "File non leggibile: " + ex.Message); }
+        { return new(name, ClientFileStatus.Unreadable, null, null, "Cannot read file: " + ex.Message); }
     }
 }

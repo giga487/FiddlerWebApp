@@ -3,17 +3,17 @@
 @inject IJSRuntime JS
 
 <div class="animation-player" @ref="root" data-state="loading">
-    <div class="animation-stage checker"><canvas aria-label="Anteprima animata SkiaSharp"></canvas></div>
+    <div class="animation-stage checker"><canvas aria-label="Animated SkiaSharp preview"></canvas></div>
     <div class="animation-controls">
-        <button type="button" data-action="play">Pausa</button>
-        <button type="button" data-action="reset">Inizio</button>
-        <button type="button" data-action="previous" aria-label="Frame precedente">◀</button>
-        <button type="button" data-action="next" aria-label="Frame successivo">▶</button>
+        <button type="button" data-action="play">Pause</button>
+        <button type="button" data-action="reset">Start</button>
+        <button type="button" data-action="previous" aria-label="Previous frame">◀</button>
+        <button type="button" data-action="next" aria-label="Next frame">▶</button>
         <label><input type="checkbox" data-action="loop" checked /> Loop</label>
-        <label>Ritardo <input type="number" data-action="delay" value="150" min="25" max="2000" step="25" /> ms</label>
+        <label>Delay <input type="number" data-action="delay" value="150" min="25" max="2000" step="25" /> ms</label>
         <label>Zoom <select data-action="zoom"><option value="1">100%</option><option value="2" selected>200%</option><option value="4">400%</option></select></label>
     </div>
-    <div class="animation-scrub"><input type="range" data-action="seek" min="0" max="@(Atlas.FrameCount - 1)" value="0" aria-label="Seleziona frame" />
+    <div class="animation-scrub"><input type="range" data-action="seek" min="0" max="@(Atlas.FrameCount - 1)" value="0" aria-label="Select frame" />
         <output data-frame-label aria-live="off">Frame 1 / @Atlas.FrameCount</output></div>
 </div>
 @if (error is not null) { <p class="notice error" role="alert">@error</p> }
@@ -40,7 +40,7 @@
                 Atlas.FrameWidth, Atlas.FrameHeight, Atlas.Columns, Atlas.FrameCount
             });
         }
-        catch (JSException) when (!disposed) { error = "Impossibile avviare l'anteprima animata nel browser."; StateHasChanged(); }
+        catch (JSException) when (!disposed) { error = "Cannot start the animated preview in the browser."; StateHasChanged(); }
     }
 
     public async ValueTask DisposeAsync()

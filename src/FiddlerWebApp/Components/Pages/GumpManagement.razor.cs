@@ -43,7 +43,7 @@ public partial class GumpManagement : IAsyncDisposable
             : int.TryParse(value, out id);
         return parsed && id >= 0 && id < GumpUopReader.MaxSlots;
     }
-    private int TargetId() => TryId(Target, out int id) ? id : throw new ArgumentException("Inserisci un ID da 0 a 0x11FFF, decimale o esadecimale.");
+    private int TargetId() => TryId(Target, out int id) ? id : throw new ArgumentException("Enter an ID from 0 to 0x11FFF in decimal or hexadecimal.");
     private static bool Expected(Exception ex) => ex is IOException or InvalidDataException or ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException;
     private string Image(GumpRecord record) => "data:image/png;base64," + Convert.ToBase64String(Renderer.RenderPng(record.Decode()));
 
@@ -53,7 +53,7 @@ public partial class GumpManagement : IAsyncDisposable
         try
         {
             Workspace.Open(Settings.Directory);
-            if (Document is null) throw new InvalidDataException("La cartella non contiene Gump.");
+            if (Document is null) throw new InvalidDataException("The folder contains no Gumps.");
             Error = null; Info = null; Rows = []; Target = (RequestedId ?? Document.Entries.FirstOrDefault()?.Id ?? 0).ToString();
             ShowSelection();
         }
@@ -62,7 +62,7 @@ public partial class GumpManagement : IAsyncDisposable
     private void ShowSelection()
     {
         CurrentImage = CurrentDetail = null;
-        if (Document is null || !TryId(Target, out int id)) { CurrentDetail = "ID di destinazione non valido."; return; }
+        if (Document is null || !TryId(Target, out int id)) { CurrentDetail = "Invalid target ID."; return; }
         if (!Document.Entries.Any(entry => entry.Id == id)) return;
         try { CurrentImage = Image(Document.ReadRecord(id)); }
         catch (Exception ex) when (Expected(ex)) { CurrentDetail = ex.Message; }
@@ -71,7 +71,7 @@ public partial class GumpManagement : IAsyncDisposable
     {
         if (Busy) return;
         ClearPending(); Error = null;
-        Busy = true; OperationLabel = "Lettura PNG";
+        Busy = true; OperationLabel = "Reading PNG";
         try
         {
             using var memory = new MemoryStream();
@@ -89,27 +89,27 @@ public partial class GumpManagement : IAsyncDisposable
     private void InsertPng()
     {
         if (Busy || Pending is null || Document is null) return;
-        try { int id = TargetId(); Document.Put(id, Pending); Changed($"PNG inserito nell'ID {id} in bozza."); }
+        try { int id = TargetId(); Document.Put(id, Pending); Changed($"PNG added to draft ID {id}."); }
         catch (Exception ex) when (Expected(ex)) { Error = ex.Message; }
     }
     private void Changed(string message)
     {
         Rows = []; Page = 0; ExportedDirectory = null; Error = null;
-        Info = message + " Il confronto va ricalcolato dopo le modifiche.";
+        Info = message + " Run the comparison again after making changes.";
         ShowSelection();
     }
     private void UndoTarget()
     {
         if (Busy || Document is null) return;
-        try { Document.Undo(TargetId()); Changed("Modifica dell'ID annullata."); }
+        try { Document.Undo(TargetId()); Changed("Changes to this ID undone."); }
         catch (Exception ex) when (Expected(ex)) { Error = ex.Message; }
     }
-    private void DiscardAll() { if (!Busy && Document is not null) { Document.Discard(); Changed("Bozze scartate."); } }
+    private void DiscardAll() { if (!Busy && Document is not null) { Document.Discard(); Changed("Drafts discarded."); } }
 
     private async Task Compare()
     {
         if (Busy || Document is null) return;
-        Begin("Confronto in corso");
+        Begin("Comparing");
         try
         {
             var next = GumpArchive.Open(ReferencePath.Trim(), string.IsNullOrWhiteSpace(ReferenceIndex) ? null : ReferenceIndex.Trim());
@@ -124,9 +124,9 @@ public partial class GumpManagement : IAsyncDisposable
             int? selected = Rows.Where(row => row.Difference is GumpDifference.Different or GumpDifference.ReferenceOnly).Select(row => (int?)row.Id).FirstOrDefault()
                 ?? Rows.Select(row => (int?)row.Id).FirstOrDefault();
             if (selected is int id) SelectComparison(id);
-            Info = $"Confronto completato: {Rows.Count:N0} ID analizzati.";
+            Info = $"Comparison complete: {Rows.Count:N0} IDs checked.";
         }
-        catch (OperationCanceledException) { Info = "Confronto annullato."; }
+        catch (OperationCanceledException) { Info = "Comparison canceled."; }
         catch (Exception ex) when (Expected(ex)) { Error = ex.Message; }
         finally { End(); }
     }
@@ -134,35 +134,35 @@ public partial class GumpManagement : IAsyncDisposable
     {
         Target = id.ToString(); SelectedReference = id; ReferenceImage = ReferenceDetail = null;
         ShowSelection();
-        if (reference?.Entries.Any(entry => entry.Id == id) != true) { ReferenceDetail = "ID non presente nel riferimento."; return; }
+        if (reference?.Entries.Any(entry => entry.Id == id) != true) { ReferenceDetail = "ID not found in the reference."; return; }
         try { ReferenceImage = Image(reference.ReadRecord(id)); }
         catch (Exception ex) when (Expected(ex)) { ReferenceDetail = ex.Message; }
     }
     private void CopyReference()
     {
         if (Busy || reference is null || SelectedReference is not int id || Document is null) return;
-        try { int target = TargetId(); Document.Put(target, reference.ReadRecord(id)); Changed($"Gump {id} del riferimento copiato nell'ID {target} in bozza."); }
+        try { int target = TargetId(); Document.Put(target, reference.ReadRecord(id)); Changed($"Reference Gump {id} copied to draft ID {target}."); }
         catch (Exception ex) when (Expected(ex)) { Error = ex.Message; }
     }
     private async Task Export()
     {
         if (Busy || Document is null) return;
-        Begin("Salvataggio nuova versione");
+        Begin("Saving a new version");
         try
         {
             var token = operation!.Token;
             var task = Task.Run(() => Document.ExportMul(OutputParent.Trim(), token), token);
             running = task; ExportedDirectory = await task;
-            Info = "Nuova coppia MUL/IDX salvata. Gli originali non sono stati modificati.";
+            Info = "New MUL/IDX pair saved. Original files were not changed.";
         }
-        catch (OperationCanceledException) { Info = "Salvataggio annullato."; }
+        catch (OperationCanceledException) { Info = "Save canceled."; }
         catch (Exception ex) when (Expected(ex)) { Error = ex.Message; }
         finally { End(); }
     }
     private void OpenExport()
     {
         if (Busy || ExportedDirectory is null) return;
-        try { Workspace.Open(ExportedDirectory, discardChanges: true); Rows = []; ShowSelection(); Info = "Versione salvata aperta nel workspace."; Error = null; }
+        try { Workspace.Open(ExportedDirectory, discardChanges: true); Rows = []; ShowSelection(); Info = "Saved version opened in the workspace."; Error = null; }
         catch (Exception ex) when (Expected(ex)) { Error = ex.Message; }
     }
     private void Begin(string label) { Busy = true; Error = Info = null; Progress = 0; OperationLabel = label; operation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); }
@@ -173,8 +173,8 @@ public partial class GumpManagement : IAsyncDisposable
     private void NextPage() => Page = Math.Min(PageCount - 1, Page + 1);
     private static string DifferenceLabel(GumpDifference value) => value switch
     {
-        GumpDifference.Equal => "Uguali", GumpDifference.Different => "Diversi", GumpDifference.CurrentOnly => "Solo attuale",
-        GumpDifference.ReferenceOnly => "Solo riferimento", _ => "Non leggibili"
+        GumpDifference.Equal => "Equal", GumpDifference.Different => "Different", GumpDifference.CurrentOnly => "Current only",
+        GumpDifference.ReferenceOnly => "Reference only", _ => "Unreadable"
     };
     public async ValueTask DisposeAsync()
     {

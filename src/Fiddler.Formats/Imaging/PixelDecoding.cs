@@ -11,7 +11,7 @@ internal static class PixelDecoding
     {
         if (width <= 0 || height <= 0 || width > MaxDimension || height > MaxDimension ||
             (long)width * height > MaxPixels)
-            throw new InvalidDataException("Dimensioni immagine non valide o superiori ai limiti.");
+            throw new InvalidDataException("Image dimensions are invalid or exceed the limits.");
         return new int[width * height];
     }
 
@@ -24,7 +24,7 @@ internal static class PixelDecoding
     internal static void Ensure(ReadOnlySpan<byte> data, int position, int count)
     {
         if (position < 0 || count < 0 || position > data.Length - count)
-            throw new InvalidDataException("Record MUL troncato o offset non valido.");
+            throw new InvalidDataException("MUL record is truncated or has an invalid offset.");
     }
 
     internal static int Color(ushort value)

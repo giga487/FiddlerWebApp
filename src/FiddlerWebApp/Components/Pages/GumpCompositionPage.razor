@@ -1,3 +1,4 @@
+@page "/gump/composition"
 @page "/gump/composizione"
 @using Fiddler.Graphics.Gumps
 @using Fiddler.Formats.Gumps
@@ -6,54 +7,54 @@
 @inject MulWorkspace Workspace
 @inject ClientDirectorySettings Settings
 
-<PageTitle>Composizione Gump · Fiddler</PageTitle>
+<PageTitle>Gump composition · Fiddler</PageTitle>
 <div class="composition-page">
-    <div class="section-label">GUMP / COMPOSIZIONE</div>
-    <h1>Componi sulla griglia</h1>
-    <p>I pezzi mantengono le dimensioni originali. Ogni origine si aggancia alla griglia; un'immagine può occupare più celle.</p>
-    <p class="muted">La composizione è una bozza della sessione: non modifica i MUL e non ricostruisce automaticamente i layout del gioco. Ricaricando la pagina può andare persa.</p>
+    <div class="section-label">GUMP / COMPOSITION</div>
+    <h1>Compose on a grid</h1>
+    <p>Pieces keep their original dimensions. Each origin snaps to the grid; an image can span multiple cells.</p>
+    <p class="muted">The composition is a session draft: it does not change MUL files or automatically reconstruct game layouts. Reloading the page may discard it.</p>
     @if (error is not null) { <div class="notice error" role="alert">@error</div> }
     <div class="composition-layout">
         <aside class="composition-controls">
-            <h2>Griglia</h2>
-            <label>Larghezza piano (px)<input type="number" min="64" max="2048" @bind="width" /></label>
-            <label>Altezza piano (px)<input type="number" min="64" max="2048" @bind="height" /></label>
-            <label>Lato cella (px)<input type="number" min="4" max="256" @bind="cell" /></label>
-            <FluentButton OnClick="Configure">Applica e allinea</FluentButton>
-            <label class="composition-check"><input type="checkbox" @bind="showGrid" @bind:after="Refresh" /> Mostra griglia</label>
+            <h2>Grid</h2>
+            <label>Board width (px)<input type="number" min="64" max="2048" @bind="width" /></label>
+            <label>Board height (px)<input type="number" min="64" max="2048" @bind="height" /></label>
+            <label>Cell size (px)<input type="number" min="4" max="256" @bind="cell" /></label>
+            <FluentButton OnClick="Configure">Apply and align</FluentButton>
+            <label class="composition-check"><input type="checkbox" @bind="showGrid" @bind:after="Refresh" /> Show grid</label>
             <label>Zoom<select @bind="zoom"><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option></select></label>
-            <h2>Aggiungi un pezzo</h2>
-            <label>ID Gump (decimale o 0x…)<input @bind="idInput" placeholder="44 oppure 0x002C" /></label>
-            <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Add">Aggiungi alla griglia</FluentButton>
-            <p class="muted">Dalla cartella configurata; viene scelto il primo spazio libero. Puoi aggiungere più copie dello stesso ID.</p>
-            <FluentButton OnClick="Arrange" Disabled="@(Composition.Pieces.Count == 0)">Disponi senza sovrapposizioni</FluentButton>
-            <h2>Pezzo selezionato</h2>
+            <h2>Add a piece</h2>
+            <label>Gump ID (decimal or 0x…)<input @bind="idInput" placeholder="44 or 0x002C" /></label>
+            <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Add">Add to grid</FluentButton>
+            <p class="muted">Uses the configured folder and the first free space. You can add multiple copies of the same ID.</p>
+            <FluentButton OnClick="Arrange" Disabled="@(Composition.Pieces.Count == 0)">Arrange without overlaps</FluentButton>
+            <h2>Selected piece</h2>
             @if (Selected is { } piece)
             {
-                <p><strong>ID @piece.GumpId · @($"0x{piece.GumpId:X4}")</strong><br />@piece.Image.Width × @piece.Image.Height px · posizione @piece.X, @piece.Y</p>
+                <p><strong>ID @piece.GumpId · @($"0x{piece.GumpId:X4}")</strong><br />@piece.Image.Width × @piece.Image.Height px · position @piece.X, @piece.Y</p>
                 <label>X (px)<input type="number" @bind="positionX" /></label>
                 <label>Y (px)<input type="number" @bind="positionY" /></label>
-                <FluentButton OnClick="Move">Aggancia posizione</FluentButton>
-                <label class="composition-check"><input type="checkbox" @bind="placeOnClick" /> Sposta qui con un clic sul piano</label>
-                <FluentButton OnClick="Remove">Rimuovi pezzo</FluentButton>
-                <a href="@($"/gump/gestione?id={piece.GumpId}")">Importa o confronta l'immagine originale</a>
-                <FluentButton OnClick="Reload">Aggiorna immagine dal workspace</FluentButton>
+                <FluentButton OnClick="Move">Snap position</FluentButton>
+                <label class="composition-check"><input type="checkbox" @bind="placeOnClick" /> Move here with a click on the board</label>
+                <FluentButton OnClick="Remove">Remove piece</FluentButton>
+                <a href="@($"/gump/manage?id={piece.GumpId}")">Import or compare the original image</a>
+                <FluentButton OnClick="Reload">Refresh image from workspace</FluentButton>
             }
-            else { <p class="muted">Clicca un'immagine sul piano oppure selezionala nell'elenco.</p> }
-            <a href="/gump">Torna al catalogo Gump</a>
+            else { <p class="muted">Click an image on the board or select it in the list.</p> }
+            <a href="/gump">Back to Gump catalog</a>
         </aside>
-        <section class="composition-main" aria-label="Composizione Gump">
-            <p aria-live="polite">@Composition.Pieces.Count pezzi · piano @Composition.Width × @Composition.Height px · celle @Composition.CellSize px</p>
+        <section class="composition-main" aria-label="Gump composition">
+            <p aria-live="polite">@Composition.Pieces.Count pieces · board @Composition.Width × @Composition.Height px · cells @Composition.CellSize px</p>
             <div class="composition-viewport">
                 @if (preview is not null)
                 {
-                    <img class="composition-board" src="@preview" alt="Piano Gump: clicca un pezzo per selezionarlo" draggable="false"
+                    <img class="composition-board" src="@preview" alt="Gump board: click a piece to select it" draggable="false"
                          style="width:@(Pixels(Composition.Width * zoom))px;height:@(Pixels(Composition.Height * zoom))px"
                          @onclick="BoardClick" />
                 }
             </div>
-            <p class="muted">@(placeOnClick && Selected is not null ? "Clicca per posizionare l'angolo superiore sinistro del pezzo sulla griglia." : "Clicca un pezzo per selezionarlo. In caso di sovrapposizione viene selezionato quello sopra.")</p>
-            <div class="composition-pieces" aria-label="Pezzi della composizione">
+            <p class="muted">@(placeOnClick && Selected is not null ? "Click to place the piece's top-left corner on the grid." : "Click a piece to select it. Overlapping pieces are selected from the top.")</p>
+            <div class="composition-pieces" aria-label="Composition pieces">
                 @foreach (var item in Composition.Pieces)
                 {
                     <button class="@(item.Key == selectedKey ? "active" : "")" @onclick="() => Select(item.Key)" aria-pressed="@(item.Key == selectedKey)">
@@ -102,9 +103,9 @@
         bool valid = value.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
             ? int.TryParse(value[2..], System.Globalization.NumberStyles.AllowHexSpecifier, null, out int id)
             : int.TryParse(value, out id);
-        if (!valid || id < 0 || id >= GumpUopReader.MaxSlots) throw new ArgumentException("Inserisci un ID Gump valido, decimale o esadecimale.");
+        if (!valid || id < 0 || id >= GumpUopReader.MaxSlots) throw new ArgumentException("Enter a valid Gump ID in decimal or hexadecimal.");
         if (Workspace.Gumps is null) Workspace.Open(Settings.Directory);
-        var document = Workspace.Gumps ?? throw new InvalidOperationException("La cartella non contiene un archivio Gump.");
+        var document = Workspace.Gumps ?? throw new InvalidOperationException("The folder contains no Gump archive.");
         selectedKey = Composition.Add(id, document.Read(id)).Key;
         SyncPosition(); placeOnClick = false;
     });
@@ -115,7 +116,7 @@
     private void Reload() => Run(() =>
     {
         if (Selected is not { } piece) return;
-        var image = Workspace.Gumps?.Read(piece.GumpId) ?? throw new InvalidOperationException("Apri l'archivio nel workspace.");
+        var image = Workspace.Gumps?.Read(piece.GumpId) ?? throw new InvalidOperationException("Open the archive in the workspace.");
         Composition.ReplaceImage(piece.Key, image);
         SyncPosition();
     });

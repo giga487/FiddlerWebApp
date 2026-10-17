@@ -29,37 +29,37 @@ public static class ClientFileCatalog
             foreach (var file in alternatives.SelectMany(a => a))
             {
                 if (!ExpectedFiles.Contains(file, StringComparer.OrdinalIgnoreCase) || !assigned.Add(file))
-                    throw new InvalidOperationException($"File sconosciuto o duplicato nel catalogo: {file}");
+                    throw new InvalidOperationException($"Unknown or duplicate catalog file: {file}");
             }
             result.Add(new ClientFileGroup(name, category,
                 Array.AsReadOnly(alternatives.Select(a => (IReadOnlyList<string>)Array.AsReadOnly(a)).ToArray()), viewer));
         }
-        Add("Terreni e oggetti", "Grafica", true, ["artidx.mul", "art.mul"], ["artlegacymul.uop"]);
-        Add("Gump", "Grafica", true, ["gumpidx.mul", "gumpart.mul"], ["gumpartlegacymul.uop"]);
-        Add("Texture", "Grafica", false, ["texidx.mul", "texmaps.mul"]);
-        Add("Luci", "Grafica", false, ["lightidx.mul", "light.mul"]);
-        Add("Suoni", "Audio", false, ["soundidx.mul", "sound.mul"], ["soundlegacymul.uop"]);
-        Add("Multi", "Multi", false, ["multi.idx", "multi.mul"], ["multicollection.uop"]);
-        Add("Abilità", "Dati", false, ["skills.idx", "skills.mul"]);
+        Add("Land tiles and items", "Graphics", true, ["artidx.mul", "art.mul"], ["artlegacymul.uop"]);
+        Add("Gump", "Graphics", true, ["gumpidx.mul", "gumpart.mul"], ["gumpartlegacymul.uop"]);
+        Add("Textures", "Graphics", false, ["texidx.mul", "texmaps.mul"]);
+        Add("Lights", "Graphics", false, ["lightidx.mul", "light.mul"]);
+        Add("Sounds", "Audio", false, ["soundidx.mul", "sound.mul"], ["soundlegacymul.uop"]);
+        Add("Multi", "Multi", true, ["multi.idx", "multi.mul"], ["multicollection.uop"]);
+        Add("Skills", "Data", false, ["skills.idx", "skills.mul"]);
         for (int i = 0; i < 6; i++)
         {
-            Add($"Mappa {i}", "Mappe", false, [$"map{i}.mul"], [$"map{i}legacymul.uop"]);
-            Add($"Statici mappa {i}", "Mappe", false, [$"staidx{i}.mul", $"statics{i}.mul"]);
-            Add($"Patch mappa {i}", "Patch opzionali", false, [$"mapdifl{i}.mul", $"mapdif{i}.mul"]);
-            Add($"Patch statici {i}", "Patch opzionali", false, [$"stadifl{i}.mul", $"stadifi{i}.mul", $"stadif{i}.mul"]);
+            Add($"Map {i}", "Maps", true, [$"map{i}.mul"], [$"map{i}legacymul.uop"]);
+            Add($"Map statics {i}", "Maps", false, [$"staidx{i}.mul", $"statics{i}.mul"]);
+            Add($"Map patches {i}", "Optional patches", false, [$"mapdifl{i}.mul", $"mapdif{i}.mul"]);
+            Add($"Static patches {i}", "Optional patches", false, [$"stadifl{i}.mul", $"stadifi{i}.mul", $"stadif{i}.mul"]);
         }
         for (int i = 1; i <= 6; i++)
         {
             string suffix = i == 1 ? "" : i.ToString();
-            Add($"Animazioni {i}", "Animazioni", true,
+            Add($"Animations {i}", "Animations", true,
                 [$"anim{suffix}.idx", $"anim{suffix}.mul"], [$"animationframe{i}.uop"]);
         }
         foreach (string file in ExpectedFiles.Where(file => !assigned.Contains(file)))
         {
-            string category = file.StartsWith("cliloc") ? "Localizzazione" :
-                file.StartsWith("unifont") || file == "fonts.mul" ? "Font" :
-                file.StartsWith("facet") ? "Mappe" : file.EndsWith(".exe") ? "Eseguibili opzionali" :
-                file.Contains("anim") || file.StartsWith("body") ? "Animazioni" : "Dati opzionali";
+            string category = file.StartsWith("cliloc") ? "Localization" :
+                file.StartsWith("unifont") || file == "fonts.mul" ? "Fonts" :
+                file.StartsWith("facet") ? "Maps" : file.EndsWith(".exe") ? "Optional executables" :
+                file.Contains("anim") || file.StartsWith("body") ? "Animations" : "Optional data";
             Add(file, category, false, [file]);
         }
         return result.AsReadOnly();

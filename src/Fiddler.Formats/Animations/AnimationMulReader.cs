@@ -45,7 +45,7 @@ public sealed class AnimationMulReader : IDisposable
         var names = type == AnimationBodyType.Animal ? AnimalActions : type == AnimationBodyType.Monster ? MonsterActions : [];
         return Enumerable.Range(0, count).Where(action => Enumerable.Range(0, 5)
             .Any(direction => HasSequence(body, action, direction)))
-            .Select(action => new AnimationAction(action, action < names.Length ? names[action] : $"Azione {action}"))
+            .Select(action => new AnimationAction(action, action < names.Length ? names[action] : $"Action {action}"))
             .ToArray();
     }
 

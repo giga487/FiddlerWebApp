@@ -15,7 +15,7 @@ public sealed class AnimationRenderer
     public AnimationBounds GetBounds(AnimationClip clip)
     {
         var visible = clip.Frames.Where(frame => frame.Image is not null).ToArray();
-        if (visible.Length == 0) throw new InvalidDataException("La sequenza non contiene frame visibili.");
+        if (visible.Length == 0) throw new InvalidDataException("The sequence contains no visible frames.");
         int left = visible.Min(frame => -frame.CenterX);
         int top = visible.Min(frame => -frame.CenterY - frame.Image!.Height);
         int right = visible.Max(frame => -frame.CenterX + frame.Image!.Width);
@@ -39,14 +39,14 @@ public sealed class AnimationRenderer
         var bounds = GetBounds(clip);
         if (bounds.Width > 4096 || bounds.Height > 4096 ||
             (long)bounds.Width * bounds.Height * clip.Frames.Count > MaxAtlasPixels)
-            throw new InvalidDataException("L'anteprima animata supera i limiti di dimensione.");
+            throw new InvalidDataException("Animated preview exceeds the size limits.");
         int columns = Math.Min(clip.Frames.Count, Math.Max(1, 4096 / bounds.Width));
         int rows = (clip.Frames.Count + columns - 1) / columns;
         int width = columns * bounds.Width, height = rows * bounds.Height;
         if (height > 8192 || (long)width * height > MaxAtlasPixels)
-            throw new InvalidDataException("Atlas animazione oltre i limiti di dimensione.");
+            throw new InvalidDataException("Animation atlas exceeds the size limits.");
         using var surface = SKSurface.Create(new SKImageInfo(width, height))
-            ?? throw new InvalidOperationException("Impossibile creare la superficie animazione Skia.");
+            ?? throw new InvalidOperationException("Cannot create the Skia animation surface.");
         surface.Canvas.Clear(SKColors.Transparent);
         for (int i = 0; i < clip.Frames.Count; i++)
             DrawFrame(surface.Canvas, clip, i, i % columns * bounds.Width - bounds.Left,

@@ -11,7 +11,7 @@ public sealed class DecodedImage
     {
         if (width <= 0 || height <= 0 || width > Imaging.PixelDecoding.MaxDimension || height > Imaging.PixelDecoding.MaxDimension ||
             (long)width * height > Imaging.PixelDecoding.MaxPixels || pixels.Length != (long)width * height)
-            throw new ArgumentException("Dimensioni o numero di pixel non validi.");
+            throw new ArgumentException("Invalid dimensions or pixel count.");
         return new DecodedImage(width, height, pixels.ToArray());
     }
 

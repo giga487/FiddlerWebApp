@@ -8,7 +8,7 @@ public static class LandDecoder
     {
         const int pixelCount = 1012;
         if (data.Length < pixelCount * 2)
-            throw new InvalidDataException("Land tile troncata: servono 1012 pixel a 16 bit.");
+            throw new InvalidDataException("Truncated land tile: expected 1012 16-bit pixels.");
 
         var pixels = new int[44 * 44];
         int position = 0;

@@ -12,16 +12,16 @@ public sealed class MulWorkspace : IDisposable
     public GumpDocument? Gumps => gumps;
     public string CurrentDirectory { get; private set; } = "";
     public bool IsOpen => art is not null || gumps is not null;
-    public string DisplayName { get; private set; } = "Nessun archivio aperto";
+    public string DisplayName { get; private set; } = "No archive open";
 
     public void Open(string directory, bool discardChanges = false)
     {
         if (gumps?.HasChanges == true && !discardChanges)
-            throw new InvalidOperationException("Ci sono bozze Gump: salva una versione oppure scarta le modifiche prima di aprire un altro archivio.");
+            throw new InvalidOperationException("There are Gump drafts: save a version or discard changes before opening another archive.");
         if (string.IsNullOrWhiteSpace(directory))
-            throw new InvalidDataException("Configura la cartella dati MUL prima di aprire l'archivio.");
+            throw new InvalidDataException("Configure the MUL data folder before opening the archive.");
         var folder = new DirectoryInfo(Path.GetFullPath(directory));
-        if (!folder.Exists) throw new DirectoryNotFoundException("La cartella dati MUL non esiste.");
+        if (!folder.Exists) throw new DirectoryNotFoundException("The MUL data folder does not exist.");
         var files = folder.EnumerateFiles().ToDictionary(file => file.Name, file => file.FullName,
             StringComparer.OrdinalIgnoreCase);
         ArtMulReader? nextArt = null;
@@ -33,7 +33,7 @@ public sealed class MulWorkspace : IDisposable
             if (files.ContainsKey("gumpidx.mul") && files.ContainsKey("gumpart.mul") || files.ContainsKey("gumpartlegacymul.uop"))
                 nextGumps = GumpDocument.Open(folder.FullName);
             if (nextArt is null && nextGumps is null)
-                throw new InvalidDataException("Nessuna coppia MUL trovata. Servono artidx.mul + art.mul oppure gumpidx.mul + gumpart.mul.");
+                throw new InvalidDataException("No MUL pair found. Expected artidx.mul + art.mul or gumpidx.mul + gumpart.mul.");
         }
         catch
         {
@@ -60,7 +60,7 @@ public sealed class MulWorkspace : IDisposable
         AssetKind.Item => art?.ReadItem(entry.Id),
         AssetKind.Gump => gumps?.Read(entry.Id),
         _ => throw new ArgumentOutOfRangeException(nameof(entry))
-    }) ?? throw new InvalidOperationException("Archivio non aperto.");
+    }) ?? throw new InvalidOperationException("Archive is not open.");
 
     public void Dispose()
     {

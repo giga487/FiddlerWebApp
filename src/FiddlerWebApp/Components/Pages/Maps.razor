@@ -1,0 +1,90 @@
+@page "/maps"
+@page "/mappe"
+@using Fiddler.Formats.Maps
+@using Fiddler.Graphics.World
+@using FiddlerWebApp.Components.World
+@inject WorldAssetWorkspace Workspace
+@inject ClientDirectorySettings Settings
+
+<PageTitle>Maps · Fiddler</PageTitle>
+<section class="world-page">
+    <div class="section-label">CLIENT LIBRARY / MAPS</div><h1>Map tiles</h1>
+    <p>Explore one region at a time: land tile ID, position, elevation and statics. Files stay on the server.</p>
+    <div class="world-controls">
+        <label>Map<select @bind="facet">@for (int i = 0; i < 6; i++) { <option value="@i">Map @i</option> }</select></label>
+        <label>Archive<select @bind="source"><option value="auto">Automatic (UOP if available)</option><option value="mul">map MUL</option><option value="uop">mapLegacyMUL UOP</option></select></label>
+        <label class="world-checkbox"><input type="checkbox" @bind="includeStatics" /> Load statics too</label>
+        <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Open" Disabled="busy">Load map</FluentButton>
+        <a href="/configuration">Configure server folder</a>
+    </div>
+    @if (error is not null) { <div class="notice error" role="alert">@error</div> }
+    @if (loaded && Workspace.Map is { } map)
+    {
+        <p class="world-map-source">Map @loadedFacet · @map.Format · @map.BlockCount.ToString("N0") blocks · @(map.HasStatics ? "Statics available" : "Land only")</p>
+        <p class="muted">@sizeMessage</p>
+        <div class="world-controls">
+            <label>Map width (tiles)<input type="number" step="8" min="8" max="16384" @bind="width" /></label>
+            <label>Map height (tiles)<input type="number" step="8" min="8" max="16384" @bind="height" /></label>
+            <label>Start X<input type="number" min="0" @bind="x" /></label>
+            <label>Start Y<input type="number" min="0" @bind="y" /></label>
+            <label>Region size<select @bind="size"><option value="4">4 × 4</option><option value="8">8 × 8</option><option value="16">16 × 16</option></select></label>
+            <FluentButton OnClick="Load">View region</FluentButton>
+        </div>
+        <div class="world-controls"><FluentButton OnClick="() => Navigate(-size, 0)" Disabled="@(x < size)">West</FluentButton>
+            <FluentButton OnClick="() => Navigate(size, 0)" Disabled="@(x + 2 * size > width)">East</FluentButton>
+            <FluentButton OnClick="() => Navigate(0, -size)" Disabled="@(y < size)">North</FluentButton>
+            <FluentButton OnClick="() => Navigate(0, size)" Disabled="@(y + 2 * size > height)">South</FluentButton></div>
+        @if (region is not null)
+        {
+            <p class="world-region">Region @region.X, @region.Y · @region.Size × @region.Size · @region.Land.Count land tiles / @region.Statics.Count statics</p>
+            <AssetScenePreview Tiles="tiles" />
+        }
+    }
+</section>
+
+@code {
+    private string source = "auto", sizeMessage = "";
+    private int facet, loadedFacet, width, height, x, y, size = 8;
+    private bool includeStatics = true, loaded, busy;
+    private string? error;
+    private MapRegion? region;
+    private IReadOnlyList<WorldTile> tiles = [];
+    private async Task Open()
+    {
+        busy = true; error = null; await Task.Yield();
+        try
+        {
+            Workspace.OpenMap(Settings.Directory, facet, source == "auto" ? null : source == "uop", includeStatics);
+            loadedFacet = facet; loaded = true; region = null; tiles = []; x = y = 0;
+            if (MapArchive.DetectSize(facet, Workspace.Map!.BlockCount) is { } detected)
+            {
+                width = detected.Width; height = detected.Height;
+                sizeMessage = $"Standard dimensions detected for map {facet}: {width} × {height}.";
+                Load();
+            }
+            else
+            {
+                width = height = 0;
+                sizeMessage = "Custom map: enter width and height in tiles (multiples of 8). Block count alone does not determine the map shape.";
+            }
+        }
+        catch (Exception ex) when (Expected(ex)) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private static bool Expected(Exception ex) => ex is IOException or InvalidDataException or ArgumentException or InvalidOperationException or KeyNotFoundException or UnauthorizedAccessException;
+    private void Load()
+    {
+        error = null;
+        try
+        {
+            var map = Workspace.Map ?? throw new InvalidOperationException("Load the map first.");
+            var next = map.ReadRegion(width, height, x, y, size);
+            region = next;
+            var result = next.Land.Select((t, i) => new WorldTile(i, t.TileId, t.X, t.Y, t.Z, true)).ToList();
+            result.AddRange(next.Statics.Select((t, i) => new WorldTile(i + next.Land.Count, t.ItemId, t.X, t.Y, t.Z, false, t.Hue)));
+            tiles = result.AsReadOnly();
+        }
+        catch (Exception ex) when (Expected(ex)) { error = ex.Message; }
+    }
+    private void Navigate(int dx, int dy) { x += dx; y += dy; Load(); }
+}

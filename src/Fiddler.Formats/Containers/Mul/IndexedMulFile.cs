@@ -27,7 +27,7 @@ public sealed class IndexedMulFile : IDisposable
     {
         using var index = new FileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         if (index.Length == 0 || index.Length % 12 != 0 || index.Length > MaxIndexBytes)
-            throw new InvalidDataException("Indice MUL non valido: attesi record di 12 byte.");
+            throw new InvalidDataException("Invalid MUL index: expected 12-byte records.");
         var bytes = new byte[(int)index.Length];
         index.ReadExactly(bytes);
         var entries = new MulIndexEntry?[bytes.Length / 12];
@@ -48,7 +48,7 @@ public sealed class IndexedMulFile : IDisposable
     public MulIndexEntry GetEntry(int slot)
     {
         if (slot < 0 || slot >= slots.Length || slots[slot] is not { } entry)
-            throw new KeyNotFoundException("Slot non presente nell'indice.");
+            throw new KeyNotFoundException("Slot not found in the index.");
         return entry;
     }
 
@@ -58,13 +58,13 @@ public sealed class IndexedMulFile : IDisposable
         long fileLength = RandomAccess.GetLength(handle);
         if (entry.Offset < 0 || entry.Length <= 0 || entry.Length > MaxRecordBytes ||
             entry.Offset > fileLength - entry.Length)
-            throw new InvalidDataException("Record IDX fuori dal MUL o superiore ai limiti.");
+            throw new InvalidDataException("IDX record extends beyond the MUL or exceeds the limits.");
         var data = new byte[entry.Length];
         int read = 0;
         while (read < data.Length)
         {
             int count = RandomAccess.Read(handle, data.AsSpan(read), (long)entry.Offset + read);
-            if (count == 0) throw new InvalidDataException("Il file MUL è stato troncato durante la lettura.");
+            if (count == 0) throw new InvalidDataException("The MUL file was truncated while reading.");
             read += count;
         }
         return data;

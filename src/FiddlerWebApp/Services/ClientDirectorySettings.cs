@@ -21,10 +21,10 @@ public sealed class ClientDirectorySettings
     public void Save(string value)
     {
         if (string.IsNullOrWhiteSpace(value) || !Path.IsPathFullyQualified(value))
-            throw new ArgumentException("La cartella deve avere un percorso assoluto.");
+            throw new ArgumentException("The folder path must be absolute.");
         string normalized = Path.GetFullPath(value);
         if (!System.IO.Directory.Exists(normalized))
-            throw new DirectoryNotFoundException("La cartella non esiste più o non è accessibile.");
+            throw new DirectoryNotFoundException("The folder no longer exists or is not accessible.");
         lock (gate)
         {
             System.IO.Directory.CreateDirectory(Path.GetDirectoryName(storagePath)!);

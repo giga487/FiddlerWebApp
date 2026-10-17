@@ -29,7 +29,7 @@ export async function attach(root, atlas) {
         root.dataset.frame = String(state.frame);
         control("seek").value = state.frame;
         label.textContent = "Frame " + (state.frame + 1) + " / " + atlas.frameCount;
-        control("play").textContent = state.playing ? "Pausa" : "Riproduci";
+        control("play").textContent = state.playing ? "Pause" : "Play";
     };
     const schedule = () => {
         if (state.playing && !document.hidden && !state.request) state.request = requestAnimationFrame(tick);

@@ -31,14 +31,14 @@ public sealed class ArtMulReader : IDisposable
 
     public DecodedImage ReadLand(int id)
     {
-        if (id < 0 || id >= ItemSlotOffset) throw new KeyNotFoundException("ID terreno non valido.");
+        if (id < 0 || id >= ItemSlotOffset) throw new KeyNotFoundException("Invalid land tile ID.");
         return LandDecoder.Decode(file.Read(id));
     }
 
     public DecodedImage ReadItem(int id)
     {
         if (id < 0 || id > int.MaxValue - ItemSlotOffset)
-            throw new KeyNotFoundException("ID oggetto non valido.");
+            throw new KeyNotFoundException("Invalid item ID.");
         return StaticArtDecoder.Decode(file.Read(id + ItemSlotOffset));
     }
 

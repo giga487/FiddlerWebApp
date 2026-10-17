@@ -14,7 +14,7 @@ public static class AnimationDecoder
         Ensure(record, 0, 516);
         int count = BinaryPrimitives.ReadInt32LittleEndian(record[512..]);
         if (count < 1 || count > MaxFrames)
-            throw new InvalidDataException("Numero di frame non valido o superiore ai limiti.");
+            throw new InvalidDataException("Frame count is invalid or exceeds the limits.");
         int tableEnd = 516 + count * 4;
         Ensure(record, 0, tableEnd);
         var offsets = new int[count];
@@ -22,7 +22,7 @@ public static class AnimationDecoder
         {
             long offset = 512L + BinaryPrimitives.ReadInt32LittleEndian(record.Slice(516 + i * 4, 4));
             if (offset < tableEnd || offset > record.Length - 8)
-                throw new InvalidDataException("Offset frame fuori dal record animazione.");
+                throw new InvalidDataException("Frame offset extends beyond the animation record.");
             offsets[i] = (int)offset;
         }
         Span<int> palette = stackalloc int[256];
@@ -50,7 +50,7 @@ public static class AnimationDecoder
             }
             decodedPixels += (long)width * height;
             if (decodedPixels > MaxDecodedPixels)
-                throw new InvalidDataException("Animazione oltre il limite di pixel decodificati.");
+                throw new InvalidDataException("Animation exceeds the decoded pixel limit.");
             int[] pixels = Allocate(width, height);
             int position = 8;
             while (true)
@@ -63,7 +63,7 @@ public static class AnimationDecoder
                 int y = Signed10((int)(header >> 12)) + centerY + height;
                 int length = (int)(header & 0xFFF);
                 if (length == 0 || x < 0 || x >= width || y < 0 || y >= height || length > width - x)
-                    throw new InvalidDataException("Run animazione fuori dai limiti del frame.");
+                    throw new InvalidDataException("Animation run extends beyond the frame bounds.");
                 Ensure(frame, position, length);
                 for (int p = 0; p < length; p++)
                 {

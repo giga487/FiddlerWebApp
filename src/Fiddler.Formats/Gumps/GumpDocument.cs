@@ -20,7 +20,7 @@ public sealed class GumpDocument : IDisposable
     public GumpDocument(IGumpArchive source)
     {
         if (source.Entries.Any(entry => entry.Id < 0 || entry.Id >= GumpUopReader.MaxSlots))
-            throw new InvalidDataException("L'archivio contiene ID oltre il limite Gump supportato.");
+            throw new InvalidDataException("The archive contains IDs beyond the supported Gump limit.");
         this.source = source;
         Entries = source.Entries;
     }
@@ -30,13 +30,13 @@ public sealed class GumpDocument : IDisposable
 
     public void Put(int id, GumpRecord record)
     {
-        if (id < 0 || id >= GumpUopReader.MaxSlots) throw new ArgumentOutOfRangeException(nameof(id), "ID Gump da 0 a 0x11FFF.");
+        if (id < 0 || id >= GumpUopReader.MaxSlots) throw new ArgumentOutOfRangeException(nameof(id), "Gump ID must be between 0 and 0x11FFF.");
         _ = record.Decode(); // Validate before making a change visible.
-        if (record.Data.Length > 16 * 1024 * 1024) throw new InvalidDataException("Record Gump oltre 16 MiB.");
+        if (record.Data.Length > 16 * 1024 * 1024) throw new InvalidDataException("Gump record exceeds 16 MiB.");
         long pixels = edits.Where(pair => pair.Key != id).Sum(pair => (long)pair.Value.Width * pair.Value.Height) + (long)record.Width * record.Height;
         long bytes = edits.Where(pair => pair.Key != id).Sum(pair => (long)pair.Value.Data.Length) + record.Data.Length;
         if (pixels > 16_000_000 || bytes > 64 * 1024 * 1024 || !edits.ContainsKey(id) && edits.Count >= 512)
-            throw new InvalidDataException("Troppe modifiche in memoria: salva o scarta la bozza.");
+            throw new InvalidDataException("Too many changes in memory: save or discard the draft.");
         edits[id] = record with { Data = record.Data.ToArray() };
         Refresh();
     }
@@ -53,12 +53,12 @@ public sealed class GumpDocument : IDisposable
 
     public string ExportMul(string parentDirectory, CancellationToken token = default)
     {
-        if (!Path.IsPathFullyQualified(parentDirectory)) throw new ArgumentException("Indica una cartella di destinazione assoluta sul server.");
+        if (!Path.IsPathFullyQualified(parentDirectory)) throw new ArgumentException("Enter an absolute output folder path on the server.");
         var parent = Directory.CreateDirectory(Path.GetFullPath(parentDirectory));
         string key = Guid.NewGuid().ToString("N");
         string stage = Path.Combine(parent.FullName, ".gump-stage-" + key);
         string destination = Path.Combine(parent.FullName, "gump-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + key[..8]);
-        if (Directory.Exists(stage) || Directory.Exists(destination)) throw new IOException("La cartella di esportazione esiste già.");
+        if (Directory.Exists(stage) || Directory.Exists(destination)) throw new IOException("The export folder already exists.");
         Directory.CreateDirectory(stage);
         try
         {
@@ -73,8 +73,8 @@ public sealed class GumpDocument : IDisposable
                     if (!ids.Contains(id)) { index.Write(-1); index.Write(0); index.Write(0); continue; }
                     var record = ReadRecord(id);
                     _ = record.Decode();
-                    if (record.Data.Length > 16 * 1024 * 1024) throw new InvalidDataException("Record Gump oltre 16 MiB.");
-                    if (data.BaseStream.Position > int.MaxValue - record.Data.Length) throw new InvalidDataException("MUL oltre il limite degli offset a 32 bit.");
+                    if (record.Data.Length > 16 * 1024 * 1024) throw new InvalidDataException("Gump record exceeds 16 MiB.");
+                    if (data.BaseStream.Position > int.MaxValue - record.Data.Length) throw new InvalidDataException("MUL exceeds the 32-bit offset limit.");
                     index.Write((int)data.BaseStream.Position); index.Write(record.Data.Length); index.Write(record.Width << 16 | record.Height);
                     data.Write(record.Data);
                 }

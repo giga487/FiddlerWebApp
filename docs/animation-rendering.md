@@ -1,58 +1,54 @@
-# Visualizzazione di Gump e animazioni
+# Gump and animation rendering
 
-La prima implementazione è dedicata a Gump e animazioni MUL. Formats,
-Graphics e webapp rimangono progetti separati.
+Formats, Graphics and the webapp remain separate projects. Gumps support MUL/IDX
+and UOP; animations currently support the six MUL archives.
 
-## Comportamento verificato nel fork
+## Behavior checked against the fork
 
-File di UOFiddler esaminati:
+UOFiddler source files examined:
 
-- `Ultima/Animations.cs`: GetFileIndex, GetActionCapacity, modalità esplicita animX e AnimationFrame.
-- `UoFiddler.Controls/UserControls/AnimationListControl.cs`: corpo, azione, direzione e nomi delle azioni.
-- `UoFiddler.Controls/UserControls/AnimatedPictureBox.cs`: timer iniziale di 150 ms e posizionamento.
-- `UoFiddler.Controls/Classes/AnimatedFrameListExtensions.cs`: superficie comune e ancoraggio.
+- Ultima/Animations.cs: GetFileIndex, GetActionCapacity, explicit animX/AnimationFrame modes.
+- UoFiddler.Controls/UserControls/AnimationListControl.cs: bodies, actions, directions and action names.
+- UoFiddler.Controls/UserControls/AnimatedPictureBox.cs: initial 150 ms delay and positioning.
+- UoFiddler.Controls/Classes/AnimatedFrameListExtensions.cs: common surface and anchoring.
 
-Le sequenze MUL contengono palette di 256 colori, tabella di offset dei frame,
-centri X/Y firmati e run di indici palette. Gli offset sono relativi alla posizione
-del conteggio frame, dopo i 512 byte della palette. I run usano coordinate firmate
-a 10 bit, lunghezza a 12 bit e terminatore 0x7FFF7FFF.
+MUL sequences contain a 256-color palette, frame offset table, signed X/Y centers
+and palette-index runs. Offsets are relative to the frame count after the 512-byte
+palette. Runs have signed 10-bit coordinates, 12-bit lengths and a 0x7FFF7FFF terminator.
+Five stored directions become eight: 5, 6 and 7 reuse 3, 2 and 1, mirroring pixels
+and the horizontal center. IDX layouts cover all six archives, including body 34
+in anim5. Action capacity checks prevent reading into the next body's block.
 
-Le cinque direzioni memorizzate diventano otto: 5, 6 e 7 riutilizzano 3, 2 e 1,
-specchiando pixel e centro orizzontale. Il layout IDX segue i sei archivi,
-incluso il caso body 34 in anim5. La capacità fisica delle azioni impedisce
-di leggere nel blocco del corpo successivo.
+## Pivots and SkiaSharp drawing
 
-## Pivot e disegno SkiaSharp
+Each frame rectangle relative to its anchor has left = -CenterX and
+top = -CenterY - Height. The union determines the common drawing surface.
+Frames retain the same anchor even when dimensions change. Mirroring uses
+CenterX = Width - CenterX, matching Fiddler.
 
-Il rettangolo di ogni frame rispetto all'ancora ha left = -CenterX e
-top = -CenterY - Height. L'unione dei rettangoli determina la superficie comune.
-Ogni frame mantiene la stessa ancora, anche se cambiano larghezza e altezza.
-La specchiatura usa CenterX = Width - CenterX, come Fiddler.
+AnimationRenderer.DrawFrame draws onto any SKCanvas. AnimationPlayer manages
+the current frame, play/pause, seeking and looping. The host calls Advance with
+elapsed time and Draw with a canvas: there are no Windows timer, Blazor or HTTP
+dependencies. The initial delay is 150 ms and can be changed.
 
-`AnimationRenderer.DrawFrame` disegna su qualsiasi SKCanvas. `AnimationPlayer`
-mantiene frame corrente, play/pausa, seek e loop. L'host chiama `Advance` con
-il tempo trascorso e `Draw` con il canvas: nessuna dipendenza da timer Windows,
-Blazor o HTTP. Il ritardo iniziale è 150 ms, modificabile.
+## Web playback
 
-## Riproduzione web
+SkiaSharp generates a PNG atlas of aligned cells on the server. The component
+sends it once per sequence. Browser requestAnimationFrame replays the cells;
+SkiaSharp does not run in WebAssembly and images are not transferred per tick.
+Playback controls operate locally. The clock pauses in hidden tabs; animation
+callbacks and listeners are removed when changing page or sequence. Zoom uses
+nearest-neighbor sampling.
 
-SkiaSharp genera sul server un atlas PNG con celle allineate. Il componente
-invia l'atlas una volta per sequenza. Il canvas del browser riproduce le celle
-con requestAnimationFrame: SkiaSharp non gira in WebAssembly e non vengono
-trasferite immagini a ogni tick. I controlli di riproduzione operano localmente.
-Il clock si sospende nelle schede nascoste; RAF e listener vengono rimossi
-quando si cambia pagina o sequenza. Lo zoom usa nearest-neighbor.
+## Limits and validation
 
-## Limiti e verifica
+Archive selection exposes physical IDs, like Fiddler's explicit animX mode.
+body.def, bodyconv.def, mobtypes.txt, hues, verdata, animation UOP and equipment
+composition are not applied. See [Gump management](gump-management.md) for Gump import/comparison.
 
-La scelta dell'archivio espone gli ID fisici, come la modalità esplicita animX
-di Fiddler. Non sono ancora applicati body.def, bodyconv.def, mobtypes.txt, hues,
-verdata, animazioni UOP o composizione corpo/equipaggiamento. I Gump sono letti
-da MUL/IDX e UOP, con importazione e confronto descritti in gump-management.md.
-
-I test usano record sintetici e verificano palette, alpha, coordinate firmate,
-pivot positivi e negativi, specchiatura, layout dei sei file, indici sparsi,
-record troncati, atlas e clock. La verifica nel browser usa piccoli animali
-sintetici e copre anche assenza di richieste HTTP per frame, pausa, loop, seek,
-cambio archivio, velocità, direzione specchiata, navigazione Gump e layout mobile.
-Rimane da verificare il comportamento con i dati reali del client e sul server Linux.
+Synthetic tests cover palettes, alpha, signed coordinates, positive/negative
+pivots, mirroring, all six layouts, sparse indexes, truncated records, atlas
+generation and playback timing. Browser validation covers no per-frame HTTP
+requests, pause, loop, seeking, archive changes, delay, mirrored direction,
+Gump navigation and mobile layout. Real client data and the target Linux server
+still need runtime verification.

@@ -4,19 +4,19 @@
 @inject SkiaAssetRenderer Renderer
 @inject ClientDirectorySettings Settings
 
-<PageTitle>Archivio MUL · Fiddler</PageTitle>
+<PageTitle>MUL archive · Fiddler</PageTitle>
 <div class="studio">
     <aside class="sidebar">
-        <div class="section-label">WORKSPACE</div><h1>Archivio MUL</h1>
-        <p class="muted">Esplora la grafica del client.</p>
-        <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Open" Disabled="busy">Apri archivio</FluentButton>
+        <div class="section-label">WORKSPACE</div><h1>MUL archive</h1>
+        <p class="muted">Explore the client graphics.</p>
+        <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Open" Disabled="busy">Open archive</FluentButton>
         <div class="source-name">@Workspace.DisplayName</div>
-        <a class="configure-link" href="/configurazione">Configura cartella e verifica file</a>
-        <a class="configure-link" href="/gump/gestione">Importa e confronta Gump</a>
-        <a class="configure-link" href="/gump/composizione">Componi Gump sulla griglia</a>
-        @if (Workspace.Gumps?.HasChanges == true) { <p class="muted">@Workspace.Gumps.DirtyCount Gump in bozza</p> }
-        <div class="section-label collection-label">COLLEZIONI</div>
-        <nav class="collections" aria-label="Collezioni MUL">
+        <a class="configure-link" href="/configuration">Configure folder and check files</a>
+        <a class="configure-link" href="/gump/manage">Import and compare Gumps</a>
+        <a class="configure-link" href="/gump/composition">Compose Gumps on a grid</a>
+        @if (Workspace.Gumps?.HasChanges == true) { <p class="muted">@Workspace.Gumps.DirtyCount Gump drafts</p> }
+        <div class="section-label collection-label">COLLECTIONS</div>
+        <nav class="collections" aria-label="MUL collections">
             @foreach (var collection in Enum.GetValues<AssetKind>())
             {
                 <button class="collection @(kind == collection ? "active" : "")" disabled="@busy"
@@ -25,30 +25,30 @@
                 </button>
             }
         </nav>
-        <div class="sidebar-note"><span class="status-dot"></span> Rendering SkiaSharp<br /><span class="muted">File originali aperti in sola lettura.</span></div>
+        <div class="sidebar-note"><span class="status-dot"></span> SkiaSharp rendering<br /><span class="muted">Original files are open read-only.</span></div>
     </aside>
-    <section class="browser" aria-label="Catalogo asset">
-        <div class="browser-heading"><div><div class="section-label">LIBRERIA DEL CLIENT</div><h2>@Label(kind)</h2></div><span class="format-badge">@(kind == AssetKind.Gump ? Workspace.Gumps?.Format ?? "MUL / UOP" : "MUL / IDX")</span></div>
+    <section class="browser" aria-label="Asset catalog">
+        <div class="browser-heading"><div><div class="section-label">CLIENT LIBRARY</div><h2>@Label(kind)</h2></div><span class="format-badge">@(kind == AssetKind.Gump ? Workspace.Gumps?.Format ?? "MUL / UOP" : "MUL / IDX")</span></div>
         @if (error is not null) { <div class="notice error" role="alert">@error</div> }
         @if (!Workspace.IsOpen)
         {
-            <div class="empty-state"><div class="empty-symbol">◇</div><h2>La tua libreria, nel browser</h2>
-                <p>Apri la cartella dati configurata per esplorare terreni, oggetti e gump.</p>
+            <div class="empty-state"><div class="empty-symbol">◇</div><h2>Your library in the browser</h2>
+                <p>Open the configured data folder to explore land tiles, items and Gumps.</p>
                 <div class="supported"><span>art.mul + artidx.mul</span><span>gumpart.mul + gumpidx.mul</span></div>
-                <p class="muted">Le anteprime vengono generate sul server con SkiaSharp.</p>
+                <p class="muted">Previews are generated on the server with SkiaSharp.</p>
             </div>
         }
         else
         {
             <form class="search-bar" @onsubmit="Search" @onsubmit:preventDefault>
-                <label for="asset-id">Cerca ID</label><input id="asset-id" placeholder="Es. 1234 oppure 0x04D2" @bind="query" disabled="@busy" />
-                <button class="search-submit" type="submit" disabled="@busy">Cerca</button>
-                <FluentButton OnClick="ResetSearch" Disabled="busy">Tutti</FluentButton>
+                <label for="asset-id">Find ID</label><input id="asset-id" placeholder="E.g. 1234 or 0x04D2" @bind="query" disabled="@busy" />
+                <button class="search-submit" type="submit" disabled="@busy">Find</button>
+                <FluentButton OnClick="ResetSearch" Disabled="busy">All</FluentButton>
             </form>
-            <div class="results-summary" aria-live="polite">@filtered.Count.ToString("N0") risorse · @Workspace.DisplayName</div>
+            <div class="results-summary" aria-live="polite">@filtered.Count.ToString("N0") assets · @Workspace.DisplayName</div>
             @if (filtered.Count == 0)
             {
-                <div class="empty-state"><h3>Nessuna risorsa trovata</h3><p>Verifica l'ID o seleziona un'altra collezione.</p></div>
+                <div class="empty-state"><h3>No assets found</h3><p>Check the ID or select another collection.</p></div>
             }
             else
             {
@@ -56,39 +56,39 @@
                     @foreach (var tile in tiles)
                     {
                         <button class="asset-tile @(selected?.Id == tile.Entry.Id ? "selected" : "")" @onclick="() => Select(tile.Entry)"
-                                aria-label="@($"Apri {Label(kind)} ID 0x{tile.Entry.Id:X4}")" aria-pressed="@(selected?.Id == tile.Entry.Id)">
+                                aria-label="@($"Open {Label(kind)} ID 0x{tile.Entry.Id:X4}")" aria-pressed="@(selected?.Id == tile.Entry.Id)">
                             <span class="thumbnail checker">
                                 @if (tile.Image is not null) { <img src="@tile.Image" alt="" width="@tile.Width" height="@tile.Height" /> }
-                                else { <span class="invalid-label" title="@tile.Error">Record non valido</span> }
+                                else { <span class="invalid-label" title="@tile.Error">Invalid record</span> }
                             </span>
                             <span class="tile-caption"><strong>@($"0x{tile.Entry.Id:X4}")</strong><span>@tile.Entry.Id</span></span>
                         </button>
                     }
                 </div>
-                <div class="pagination"><FluentButton OnClick="Previous" Disabled="@(busy || page == 0)">Precedente</FluentButton>
-                    <span>Pagina @(page + 1) di @PageCount</span><FluentButton OnClick="Next" Disabled="@(busy || page + 1 >= PageCount)">Successiva</FluentButton></div>
+                <div class="pagination"><FluentButton OnClick="Previous" Disabled="@(busy || page == 0)">Previous</FluentButton>
+                    <span>Page @(page + 1) of @PageCount</span><FluentButton OnClick="Next" Disabled="@(busy || page + 1 >= PageCount)">Next</FluentButton></div>
             }
         }
     </section>
-    <aside class="inspector" aria-label="Anteprima della risorsa">
-        <div class="section-label">INSPECTOR</div><h2>Anteprima</h2>
+    <aside class="inspector" aria-label="Asset preview">
+        <div class="section-label">INSPECTOR</div><h2>Preview</h2>
         @if (selected is null)
         {
-            <div class="inspector-empty">Seleziona una risorsa<br />per visualizzarla qui.</div>
+            <div class="inspector-empty">Select an asset<br />to preview it here.</div>
         }
         else
         {
             <div class="preview-toolbar"><label for="zoom">Zoom</label><select id="zoom" @bind="zoom"><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option></select></div>
             <div class="preview checker">
-                @if (preview is not null) { <img src="@preview" alt="@($"Anteprima {Label(kind)}, ID {selected.Id}")" style="width:@(selectedWidth * zoom)px;height:@(selectedHeight * zoom)px" /> }
+                @if (preview is not null) { <img src="@preview" alt="@($"Preview {Label(kind)}, ID {selected.Id}")" style="width:@(selectedWidth * zoom)px;height:@(selectedHeight * zoom)px" /> }
                 else { <p class="notice error" role="alert">@previewError</p> }
             </div>
-            <dl class="metadata"><dt>ID esadecimale</dt><dd>@($"0x{selected.Id:X4}")</dd><dt>ID decimale</dt><dd>@selected.Id</dd>
-                <dt>Dimensioni</dt><dd>@(preview is null ? "—" : $"{selectedWidth} × {selectedHeight} px")</dd>
-                <dt>Offset archivio</dt><dd>@(kind == AssetKind.Gump && Workspace.Gumps?.IsModified(selected.Id) == true ? "Bozza" : selected.Offset < 0 ? "—" : selected.Offset.ToString("N0"))</dd><dt>Record</dt><dd>@selected.Length.ToString("N0") byte</dd></dl>
-            <p class="muted inspector-footnote">Trasparenza originale · ingrandimento senza interpolazione.</p>
-            @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/gestione?id={selected.Id}")">Importa o confronta questo ID</a> }
-            @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/composizione?id={selected.Id}")">Usa nella composizione</a> }
+            <dl class="metadata"><dt>Hexadecimal ID</dt><dd>@($"0x{selected.Id:X4}")</dd><dt>Decimal ID</dt><dd>@selected.Id</dd>
+                <dt>Dimensions</dt><dd>@(preview is null ? "—" : $"{selectedWidth} × {selectedHeight} px")</dd>
+                <dt>Archive offset</dt><dd>@(kind == AssetKind.Gump && Workspace.Gumps?.IsModified(selected.Id) == true ? "Draft" : selected.Offset < 0 ? "—" : selected.Offset.ToString("N0"))</dd><dt>Record</dt><dd>@selected.Length.ToString("N0") bytes</dd></dl>
+            <p class="muted inspector-footnote">Original transparency · nearest-neighbor scaling.</p>
+            @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/manage?id={selected.Id}")">Import or compare this ID</a> }
+            @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/composition?id={selected.Id}")">Use in composition</a> }
         }
     </aside>
 </div>
@@ -105,7 +105,7 @@
     private bool busy;
     private int PageCount => Math.Max(1, (filtered.Count + PageSize - 1) / PageSize);
     private sealed record Tile(MulEntry Entry, string? Image, int Width, int Height, string? Error);
-    private static string Label(AssetKind value) => value switch { AssetKind.Land => "Terreni", AssetKind.Item => "Oggetti", _ => "Gump" };
+    private static string Label(AssetKind value) => value switch { AssetKind.Land => "Land tiles", AssetKind.Item => "Items", _ => "Gump" };
 
     protected override void OnInitialized()
     {
@@ -132,7 +132,7 @@
     private void Search()
     {
         string input = query.Trim();
-        if (input.Length != 0 && !TryId(input, out _)) { error = "Inserisci un ID decimale oppure esadecimale con prefisso 0x."; return; }
+        if (input.Length != 0 && !TryId(input, out _)) { error = "Enter a decimal ID or a hexadecimal ID prefixed with 0x."; return; }
         appliedQuery = input; Refresh();
     }
     private static bool TryId(string input, out int id) => input.StartsWith("0x", StringComparison.OrdinalIgnoreCase)

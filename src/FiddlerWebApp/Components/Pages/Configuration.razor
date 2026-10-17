@@ -1,3 +1,4 @@
+@page "/configuration"
 @page "/configurazione"
 @using Fiddler.Formats.Catalog
 @implements IDisposable
@@ -6,37 +7,37 @@
 @inject MulWorkspace Workspace
 @inject AnimationWorkspace Animations
 
-<PageTitle>Configurazione cartella · Fiddler</PageTitle>
+<PageTitle>Folder configuration · Fiddler</PageTitle>
 <section class="configuration">
-    <div class="section-label">WORKSPACE / CONFIGURAZIONE</div>
-    <h1>Cartella dati del client</h1>
-    <p class="configuration-intro">Indica una cartella del sistema operativo su cui gira Fiddler Web App. L'analisi cerca i file nella cartella selezionata, senza modificarli.</p>
+    <div class="section-label">WORKSPACE / CONFIGURATION</div>
+    <h1>Client data folder</h1>
+    <p class="configuration-intro">Enter a folder on the operating system running Fiddler Web App. The scan checks files in that folder without changing them.</p>
     <div class="configuration-panel">
         <form @onsubmit="Analyze" @onsubmit:preventDefault>
-            <label for="client-directory">Percorso assoluto sul server</label>
+            <label for="client-directory">Absolute path on the server</label>
             <div class="directory-input-row"><input id="client-directory" @bind="directory" @bind:event="oninput" @bind:after="Invalidate"
-                placeholder="D:\Dati\Client oppure /srv/seahats/client" disabled="@busy" spellcheck="false" autocomplete="off" />
-                <button class="search-submit" type="submit" disabled="@busy">@(busy ? "Analisi in corso…" : "Analizza cartella")</button></div>
+                placeholder="D:\Data\Client or /srv/seahats/client" disabled="@busy" spellcheck="false" autocomplete="off" />
+                <button class="search-submit" type="submit" disabled="@busy">@(busy ? "Scanning…" : "Scan folder")</button></div>
         </form>
-        <p class="muted">Cartella salvata: <strong class="saved-directory">@(string.IsNullOrEmpty(Settings.Directory) ? "Nessuna" : Settings.Directory)</strong></p>
+        <p class="muted">Saved folder: <strong class="saved-directory">@(string.IsNullOrEmpty(Settings.Directory) ? "None" : Settings.Directory)</strong></p>
         @if (error is not null) { <div class="notice error" role="alert">@error</div> }
-        @if (saved) { <div class="notice success" role="status">Cartella salvata. <a href="/">Vai all'archivio</a> e premi Apri archivio per caricare i file.</div> }
+        @if (saved) { <div class="notice success" role="status">Folder saved. <a href="/">Go to archive</a> and click Open archive to load the files.</div> }
     </div>
     @if (report is not null)
     {
         <div class="scan-summary" aria-live="polite">
-            <div><strong>@report.Files.Count(file => file.Status == ClientFileStatus.Present)</strong><span>Presenti</span></div>
-            <div><strong>@report.Files.Count(file => file.Status == ClientFileStatus.Missing)</strong><span>Assenti</span></div>
-            <div><strong>@report.Files.Count(file => file.Status == ClientFileStatus.Alternative)</strong><span>Coperti da alternative</span></div>
-            <div><strong>@report.Files.Count(file => IsProblem(file.Status))</strong><span>Da verificare</span></div>
-            <div><strong>@ClientFileCatalog.ExpectedFiles.Count</strong><span>File conosciuti</span></div>
+            <div><strong>@report.Files.Count(file => file.Status == ClientFileStatus.Present)</strong><span>Present</span></div>
+            <div><strong>@report.Files.Count(file => file.Status == ClientFileStatus.Missing)</strong><span>Missing</span></div>
+            <div><strong>@report.Files.Count(file => file.Status == ClientFileStatus.Alternative)</strong><span>Covered by alternatives</span></div>
+            <div><strong>@report.Files.Count(file => IsProblem(file.Status))</strong><span>Needs review</span></div>
+            <div><strong>@ClientFileCatalog.ExpectedFiles.Count</strong><span>Known files</span></div>
         </div>
-        <div class="scan-actions"><div><strong>@(report.CanView ? "Archivi disponibili per il visualizzatore" : "Nessun archivio completo per il visualizzatore")</strong>
-            <p class="muted">@(report.CanView ? "Sono presenti i file per almeno una collezione di grafica o animazioni." : "Servono coppie MUL/IDX complete e leggibili oppure gumpartLegacyMUL.uop per i Gump.")</p></div>
-            <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Save" Disabled="@(busy || saved)">Salva cartella</FluentButton></div>
-        <p class="inventory-explanation">Non tutti i file sono obbligatori: dipendono dalla versione del client, dalle mappe e dalle funzioni utilizzate. Le alternative MUL/UOP complete coprono la stessa risorsa; le coppie incomplete sono evidenziate.</p>
-        <p class="muted">Controllo di presenza, dimensione, leggibilità e allineamento degli indici. Non verifica integralmente il contenuto di ogni archivio.</p>
-        <div class="inventory-toolbar"><h2>Analisi dei file</h2><label><input type="checkbox" @bind="onlyIssues" /> Mostra solo assenze e problemi</label></div>
+        <div class="scan-actions"><div><strong>@(report.CanView ? "Archives available for the viewer" : "No complete archive available for the viewer")</strong>
+            <p class="muted">@(report.CanView ? "Archives are available for graphics, animations, Multis or maps. Multi and map previews also require Art images." : "Complete, readable archives are required for a supported collection.")</p></div>
+            <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Save" Disabled="@(busy || saved)">Save folder</FluentButton></div>
+        <p class="inventory-explanation">Required files depend on the client version, maps and features in use. Complete MUL/UOP alternatives cover the same resource; incomplete pairs are highlighted.</p>
+        <p class="muted">Checks file presence, size, readability and index alignment. Does not fully validate archive contents.</p>
+        <div class="inventory-toolbar"><h2>File scan</h2><label><input type="checkbox" @bind="onlyIssues" /> Show only missing files and issues</label></div>
         @foreach (var group in report.Groups)
         {
             var visibleFiles = group.Files.Where(file => !onlyIssues || file.Status is not (ClientFileStatus.Present or ClientFileStatus.Alternative)).ToArray();
@@ -44,10 +45,10 @@
             <details class="file-group" open="@(group.Status is ClientGroupStatus.Incomplete or ClientGroupStatus.Invalid)">
                 <summary><span><span class="group-category">@group.Definition.Category</span><strong>@group.Definition.Name</strong></span><span class="file-status @GroupClass(group.Status)">@GroupLabel(group.Status)</span></summary>
                 <div class="group-content">
-                    <p class="muted alternatives">@string.Join(" oppure ", group.Definition.Alternatives.Select(alternative => string.Join(" + ", alternative)))</p>
+                    <p class="muted alternatives">@string.Join(" or ", group.Definition.Alternatives.Select(alternative => string.Join(" + ", alternative)))</p>
                     @if (group.Definition.ViewerSupported && group.Status == ClientGroupStatus.Available)
-                    { <p class="viewer-note">@(group.CanView ? "Visualizzazione disponibile." : "Formato UOP riconosciuto. Questa collezione richiede ancora i MUL nel visualizzatore web.")</p> }
-                    <div class="file-table-container"><table class="file-table"><thead><tr><th>File</th><th>Stato</th><th>Dimensione</th><th>Dettaglio</th></tr></thead><tbody>
+                    { <p class="viewer-note">@(group.CanView ? "Viewer available." : "UOP format recognized. This collection still requires MUL files in the web viewer.")</p> }
+                    <div class="file-table-container"><table class="file-table"><thead><tr><th>File</th><th>Status</th><th>Size</th><th>Details</th></tr></thead><tbody>
                         @foreach (var file in visibleFiles)
                         {
                             <tr><td><code>@file.Name</code></td><td><span class="file-status @FileClass(file.Status)">@FileLabel(file.Status)</span></td>
@@ -59,10 +60,10 @@
         }
         @if (report.OtherFiles.Count > 0)
         {
-            <details class="file-group"><summary><strong>Altri file nella cartella</strong><span>@report.OtherFiles.Count</span></summary>
-                <div class="group-content"><p class="muted">File non inclusi nel catalogo standard di UOFiddler. Possono essere risorse personalizzate.</p>
+            <details class="file-group"><summary><strong>Other files in the folder</strong><span>@report.OtherFiles.Count</span></summary>
+                <div class="group-content"><p class="muted">Files outside the standard UOFiddler catalog. They may be custom resources.</p>
                     <ul class="other-files">@foreach (var file in report.OtherFiles.Take(100)) { <li><code>@file</code></li> }</ul>
-                    @if (report.OtherFiles.Count > 100) { <p class="muted">Visualizzati i primi 100 nomi.</p> }</div></details>
+                    @if (report.OtherFiles.Count > 100) { <p class="muted">Showing the first 100 names.</p> }</div></details>
         }
     }
 </section>
@@ -94,7 +95,7 @@
     private void Save()
     {
         if (report is null || busy) return;
-        if (Workspace.Gumps?.HasChanges == true) { error = "Salva o scarta le bozze Gump prima di cambiare cartella."; return; }
+        if (Workspace.Gumps?.HasChanges == true) { error = "Save or discard Gump drafts before changing the folder."; return; }
         try
         {
             Settings.Save(report.Directory);
@@ -102,12 +103,12 @@
             Animations.Dispose();
             saved = true; error = null;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { error = "Impossibile salvare la cartella: " + ex.Message; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { error = "Cannot save folder: " + ex.Message; }
     }
     private static bool IsProblem(ClientFileStatus status) => status is ClientFileStatus.Invalid or ClientFileStatus.Empty or ClientFileStatus.Unreadable or ClientFileStatus.Ambiguous;
     private static string FileClass(ClientFileStatus status) => status == ClientFileStatus.Present ? "status-ok" : IsProblem(status) ? "status-error" : "status-muted";
     private static string GroupClass(ClientGroupStatus status) => status switch { ClientGroupStatus.Available => "status-ok", ClientGroupStatus.Incomplete => "status-warning", ClientGroupStatus.Invalid => "status-error", _ => "status-muted" };
-    private static string GroupLabel(ClientGroupStatus status) => status switch { ClientGroupStatus.Available => "Disponibile", ClientGroupStatus.Incomplete => "Incompleto", ClientGroupStatus.Invalid => "Da verificare", _ => "Assente" };
-    private static string FileLabel(ClientFileStatus status) => status switch { ClientFileStatus.Present => "Presente", ClientFileStatus.Missing => "Assente", ClientFileStatus.Alternative => "Alternativa coperta", ClientFileStatus.Empty => "Vuoto", ClientFileStatus.Unreadable => "Non leggibile", ClientFileStatus.Ambiguous => "Nome ambiguo", _ => "Indice non valido" };
+    private static string GroupLabel(ClientGroupStatus status) => status switch { ClientGroupStatus.Available => "Available", ClientGroupStatus.Incomplete => "Incomplete", ClientGroupStatus.Invalid => "Needs review", _ => "Missing" };
+    private static string FileLabel(ClientFileStatus status) => status switch { ClientFileStatus.Present => "Present", ClientFileStatus.Missing => "Missing", ClientFileStatus.Alternative => "Covered alternative", ClientFileStatus.Empty => "Empty", ClientFileStatus.Unreadable => "Unreadable", ClientFileStatus.Ambiguous => "Ambiguous name", _ => "Invalid index" };
     public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
 }

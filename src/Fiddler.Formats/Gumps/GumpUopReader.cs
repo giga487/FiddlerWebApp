@@ -27,7 +27,7 @@ public sealed class GumpUopReader : IGumpArchive
             else if (entry.Compression == 1 && entry.ExpandedLength <= 8) continue;
             ids.Add(id, entry.Hash);
         }
-        if (ids.Count == 0) throw new InvalidDataException("L'UOP non contiene Gump riconosciuti.");
+        if (ids.Count == 0) throw new InvalidDataException("The UOP contains no recognized Gumps.");
         Entries = Array.AsReadOnly(ids.OrderBy(pair => pair.Key).Select(pair =>
         {
             var entry = archive.GetEntry(pair.Value);
@@ -43,9 +43,9 @@ public sealed class GumpUopReader : IGumpArchive
     }
     public GumpRecord ReadRecord(int id)
     {
-        if (!ids.TryGetValue(id, out ulong hash)) throw new KeyNotFoundException("ID Gump non presente nell'UOP.");
+        if (!ids.TryGetValue(id, out ulong hash)) throw new KeyNotFoundException("Gump ID not found in the UOP.");
         var data = archive.Read(hash);
-        if (data.Length < 8) throw new InvalidDataException("Payload Gump UOP troncato.");
+        if (data.Length < 8) throw new InvalidDataException("Truncated Gump UOP payload.");
         return new GumpRecord(data[8..], BinaryPrimitives.ReadInt32LittleEndian(data), BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(4)));
     }
     public DecodedImage Read(int id) => ReadRecord(id).Decode();

@@ -37,7 +37,7 @@ public sealed class ClientDirectoryTests
         folder.Write("Art.Mul", new byte[2024]);
         folder.Write("custom-assets.json", [1]);
         var report = new ClientDirectoryScanner().Scan(folder.Root);
-        var art = report.Groups.Single(group => group.Definition.Name == "Terreni e oggetti");
+        var art = report.Groups.Single(group => group.Definition.Name == "Land tiles and items");
         Assert.Equal(ClientGroupStatus.Available, art.Status);
         Assert.True(art.CanView);
         Assert.True(report.CanView);
@@ -51,7 +51,7 @@ public sealed class ClientDirectoryTests
         using var folder = new Folder();
         folder.Write("artlegacymul.uop", new byte[28]);
         var report = new ClientDirectoryScanner().Scan(folder.Root);
-        var art = report.Groups.Single(group => group.Definition.Name == "Terreni e oggetti");
+        var art = report.Groups.Single(group => group.Definition.Name == "Land tiles and items");
         Assert.Equal(ClientGroupStatus.Available, art.Status);
         Assert.False(art.CanView);
         Assert.False(report.CanView);
@@ -66,7 +66,7 @@ public sealed class ClientDirectoryTests
         folder.Write("anim.mul", AnimationTests.Fixture());
         var report = new ClientDirectoryScanner().Scan(folder.Root);
         Assert.True(report.CanView);
-        Assert.True(report.Groups.Single(group => group.Definition.Name == "Animazioni 1").CanView);
+        Assert.True(report.Groups.Single(group => group.Definition.Name == "Animations 1").CanView);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class ClientDirectoryTests
         folder.Write("artidx.mul", [1, 2, 3]);
         folder.Write("art.mul", []);
         var report = new ClientDirectoryScanner().Scan(folder.Root);
-        var art = report.Groups.Single(group => group.Definition.Name == "Terreni e oggetti");
+        var art = report.Groups.Single(group => group.Definition.Name == "Land tiles and items");
         Assert.Equal(ClientGroupStatus.Invalid, art.Status);
         Assert.Equal(ClientFileStatus.Invalid, art.Files.Single(file => file.Name == "artidx.mul").Status);
         Assert.Equal(ClientFileStatus.Empty, art.Files.Single(file => file.Name == "art.mul").Status);
@@ -114,8 +114,8 @@ public sealed class ClientDirectoryTests
         folder.Write("statics0.mul", []);
         folder.Write("stadif0.mul", [1]);
         var report = new ClientDirectoryScanner().Scan(folder.Root);
-        Assert.Equal(ClientGroupStatus.Available, report.Groups.Single(group => group.Definition.Name == "Statici mappa 0").Status);
-        var patch = report.Groups.Single(group => group.Definition.Name == "Patch statici 0");
+        Assert.Equal(ClientGroupStatus.Available, report.Groups.Single(group => group.Definition.Name == "Map statics 0").Status);
+        var patch = report.Groups.Single(group => group.Definition.Name == "Static patches 0");
         Assert.Equal(ClientGroupStatus.Incomplete, patch.Status);
         Assert.Equal(new[] { "stadifi0.mul", "stadifl0.mul" }, patch.Files.Where(file => file.Status == ClientFileStatus.Missing).Select(file => file.Name).Order());
     }

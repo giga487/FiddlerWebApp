@@ -1,73 +1,70 @@
-# Importazione e confronto Gump
+# Gump import and comparison
 
-La pagina `/gump/gestione` usa il documento corrente del workspace. Le modifiche
-restano separate dall'archivio originale fino al salvataggio di una nuova versione.
+The `/gump/manage` page uses the current workspace document. Edits remain separate
+from the original archive until a new version is saved.
 
-## Flusso
+## Workflow
 
-1. Aprire i Gump dalla cartella configurata, oppure arrivare dal visualizzatore scegliendo un ID.
-2. Specificare l'ID di destinazione, in decimale o con prefisso 0x.
-3. Caricare un PNG dal computer del browser e controllare l'anteprima convertita.
-4. Premere Aggiungi o Sostituisci nella bozza. Le modifiche appaiono anche nel visualizzatore.
-5. Facoltativamente, aprire un archivio di confronto con percorso assoluto sul server.
-6. Selezionare un risultato per le anteprime affiancate. È possibile copiare il riferimento nello stesso ID o in un ID diverso.
-7. Salvare una nuova coppia MUL/IDX completa e, se desiderato, aprirla nel workspace.
+1. Open Gumps from the configured folder or arrive from the viewer with an ID selected.
+2. Enter a target ID in decimal or hexadecimal with the 0x prefix.
+3. Upload a PNG from the browser's computer and inspect its converted preview.
+4. Click Add to draft or Replace in draft. Changes also appear in the viewer.
+5. Optionally open a comparison archive using an absolute server path.
+6. Select a comparison row for side-by-side previews; copy the reference to the same or another ID.
+7. Save a new complete MUL/IDX pair and optionally open it in the workspace.
 
-Le bozze sono legate alla sessione Blazor: sopravvivono alla navigazione interna,
-ma occorre salvare una versione prima di chiudere o ricaricare completamente la pagina.
-La riapertura del workspace e il cambio di configurazione sono bloccati se ci sono
-bozze. Sono disponibili annullamento per ID e scarto di tutte le bozze.
+Drafts belong to the Blazor session and survive internal navigation. Save a version
+before closing or fully reloading the page. Reopening the workspace or changing
+the configured folder is blocked while drafts exist. Undo by ID and discard-all
+operations are available.
 
-## Contenitori
+## Containers
 
-- MUL: gumpart.mul più gumpidx.mul; per un MUL di confronto con indice dal nome diverso si specifica il percorso dell'indice.
-- UOP: v4 e v5; i Gump sono riconosciuti tramite gli hash canonici build/gumpartlegacymul/00000000.tga, indipendentemente dal nome esterno del file.
-- Compressioni: 0 (stored), 1 (zlib), 3 (zlib più Mythic). Le dimensioni sono i primi due int32 del payload decompresso.
-- Se la cartella corrente contiene entrambi i formati, viene scelto l'UOP, come in UOFiddler.
-- I Gump UOP oltre il vecchio limite 65535 sono riconosciuti fino a 0x11FFF.
+- MUL: gumpart.mul + gumpidx.mul; an explicit index path supports renamed comparison indexes.
+- UOP v4/v5: canonical build/gumpartlegacymul/00000000.tga hashes identify Gumps independently of the external file name.
+- Compression: 0 (stored), 1 (zlib), 3 (zlib plus Mythic). The first two decompressed int32 values contain dimensions.
+- If both formats exist in the current folder, UOP is preferred, matching UOFiddler.
+- IDs above the old 65535 limit are recognized up to 0x11FFF.
 
-Hash e decoder Mythic sono adattati dalle implementazioni del fork UOFiddler
-Ultima/Helpers/UopUtils.cs e Ultima/Helpers/MythicDecompress.cs. Il codice è
-incluso nel progetto Formats e non dipende dall'applicazione desktop.
+Hashing and Mythic decoding are adapted from UOFiddler's Ultima/Helpers/UopUtils.cs
+and Ultima/Helpers/MythicDecompress.cs. They live in Formats without desktop dependencies.
 
-## Conversione PNG
+## PNG conversion
 
-Il PNG è verificato prima della decodifica. Sono ammessi fino a 8 MiB, 4096 pixel
-per lato e 4 milioni di pixel. Il formato Gump usa RGB a 15 bit e alpha a un bit:
-alpha minore di 128 diventa trasparente, gli altri pixel diventano opachi.
-Il nero opaco quantizzato viene mappato a RGB 8,8,8 per evitare il valore zero,
-riservato alla trasparenza. L'anteprima mostra già queste conversioni.
+PNG signature and dimensions are checked before decoding. Limits: 8 MiB upload,
+4096 px per side and 4 million pixels. Gumps use 15-bit RGB and one-bit alpha:
+alpha below 128 becomes transparent; other pixels become opaque. Quantized opaque
+black maps to RGB 8,8,8 to avoid zero, which represents transparency. Previews show
+the actual conversion result.
 
-## Confronto
+## Comparison
 
-Il confronto scorre l'unione degli ID e decodifica una risorsa alla volta.
-La compressione o una diversa organizzazione dei run RLE non rendono diversi
-due Gump con gli stessi pixel e dimensioni. I colori dei pixel completamente
-trasparenti non influenzano il risultato. Gli errori di lettura sono riportati
-per ID senza interrompere tutto il confronto. Sono disponibili filtro delle
-differenze, paginazione, avanzamento e annullamento dell'operazione.
+The comparer walks the union of IDs and decodes one resource at a time. Different
+compression or RLE organization does not make images different when pixels and
+dimensions match. RGB values of fully transparent pixels are ignored. Read errors
+are reported per ID without stopping the full comparison. Results distinguish
+Equal, Different, Current only, Reference only and Unreadable. Difference filters,
+pagination, progress and cancellation are available. Importing, copying or undoing
+changes invalidates previous results; run the comparison again for the new state.
 
-Importare, copiare o annullare una modifica invalida i risultati precedenti;
-occorre ricalcolare il confronto per analizzare lo stato aggiornato.
+## Saving
 
-## Salvataggio
+Export writes the complete document to a new subfolder of the selected server
+destination. Unmodified raw records are preserved and drafts are included.
+The index has at least 65536 rows and expands for higher IDs. Both files are built
+in a private staging folder and published together by moving the completed folder.
+Cancellation or failure does not publish a partial pair. Original overwriting
+and UOP output are not supported.
 
-Il salvataggio scrive l'intero documento in una nuova sottocartella della destinazione
-scelta sul server. Conserva i record non modificati e include le modifiche in bozza.
-L'indice contiene almeno 65536 righe e viene esteso per gli ID superiori.
-I due file sono costruiti in una cartella temporanea privata e pubblicati insieme
-spostando la cartella completata. Annullamenti ed errori non pubblicano coppie parziali.
-Non è prevista in questa versione la sovrascrittura degli originali o l'uscita UOP.
+Limits: 512 edits, 16 million pixels and 64 MiB of edited records per session;
+16 MiB per MUL record, 32 MiB per UOP payload and 200000 UOP entries. Drafts and
+comparison state are isolated per session.
 
-Limiti: 512 modifiche, 16 milioni di pixel e 64 MiB di record modificati per sessione;
-record MUL fino a 16 MiB, payload UOP fino a 32 MiB, 200000 record UOP complessivi.
-Le bozze e il confronto appartengono alla sessione e non vengono condivisi tra utenti.
+## Validation
 
-## Verifica
-
-I test coprono importazione PNG, quantizzazione e alpha, inserimento/sostituzione,
-undo, confronto delle cinque categorie, UOP v4/v5 con tutte le compressioni,
-file rinominati, ID elevati, input corrotti, annullamento e riapertura del risultato.
-La prova nel browser usa archivi sintetici e verifica anche copia verso un altro ID,
-navigazione con bozze, protezione dalla riapertura involontaria, originali invariati,
-salvataggio e anteprima della nuova versione. I dati reali richiedono ancora verifica.
+Tests cover PNG conversion, quantization, alpha, add/replace, undo, all five
+comparison categories, UOP v4/v5 and compression modes, renamed files, high IDs,
+malformed input, cancellation and reopening exports. Browser checks use synthetic
+archives and cover copying to another ID, draft navigation, accidental reopen
+protection, unchanged originals, saving and previewing the saved version.
+Real client data still needs verification.

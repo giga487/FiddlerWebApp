@@ -20,7 +20,7 @@ public static class StaticArtDecoder
                 position += 4;
                 if (skip == 0 && count == 0) break;
                 if (skip > width - x || count > width - x - skip)
-                    throw new InvalidDataException("Run art oltre la larghezza della riga.");
+                    throw new InvalidDataException("Art run exceeds the row width.");
                 x += skip;
                 Ensure(data, position, count * 2);
                 for (int i = 0; i < count; i++, position += 2)

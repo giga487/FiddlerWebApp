@@ -1,3 +1,4 @@
+@page "/animations"
 @page "/animazioni"
 @using Fiddler.Formats.Animations
 @using Fiddler.Graphics.Animations
@@ -6,45 +7,45 @@
 @inject ClientDirectorySettings Settings
 @inject AnimationRenderer Renderer
 
-<PageTitle>Animazioni · Fiddler</PageTitle>
+<PageTitle>Animations · Fiddler</PageTitle>
 <section class="animations-page">
-    <div class="section-label">LIBRERIA DEL CLIENT / ANIMAZIONI</div>
-    <div class="animation-heading"><div><h1>Animazioni</h1><p class="muted">Animali e creature, con azioni e otto direzioni.</p></div>
-        <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Open" Disabled="busy">@(busy ? "Apertura…" : "Apri animazioni")</FluentButton></div>
-    <p class="muted"><a href="/configurazione">Configura la cartella dati</a> · Coppie anim.idx + anim.mul e anim2…anim6.</p>
+    <div class="section-label">CLIENT LIBRARY / ANIMATIONS</div>
+    <div class="animation-heading"><div><h1>Animations</h1><p class="muted">Animals and creatures, with actions and eight directions.</p></div>
+        <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Open" Disabled="busy">@(busy ? "Opening…" : "Open animations")</FluentButton></div>
+    <p class="muted"><a href="/configuration">Configure the data folder</a> · anim.idx + anim.mul and anim2–anim6 pairs.</p>
     @if (error is not null) { <div class="notice error" role="alert">@error</div> }
     @foreach (var warning in Workspace.Warnings) { <div class="notice warning">@warning</div> }
     @if (Workspace.Readers.Count == 0)
     {
-        <div class="empty-state"><h2>Apri le animazioni del client</h2><p>Seleziona un animale, un'azione e una direzione. L'anteprima mantiene il centro originale dei frame durante il movimento.</p></div>
+        <div class="empty-state"><h2>Open client animations</h2><p>Select an animal, an action and a direction. The preview preserves the original frame anchor during movement.</p></div>
     }
     else
     {
         <div class="animation-workspace">
             <aside class="animation-selection">
-                <label for="anim-file">Archivio</label><select id="anim-file" @bind="fileType" @bind:after="ChangeFile" disabled="@busy">
-                    @foreach (var source in Workspace.Readers) { <option value="@source.FileType">@source.FileName (@source.Bodies.Count corpi)</option> }
+                <label for="anim-file">Archive</label><select id="anim-file" @bind="fileType" @bind:after="ChangeFile" disabled="@busy">
+                    @foreach (var source in Workspace.Readers) { <option value="@source.FileType">@source.FileName (@source.Bodies.Count bodies)</option> }
                 </select>
-                <label for="anim-category">Categoria</label><select id="anim-category" @bind="category" @bind:after="FilterBodies" disabled="@busy"><option value="">Tutte</option><option value="Animal">Animali</option><option value="Monster">Mostri</option><option value="Human">Umani / equipaggiamento</option></select>
-                <label for="anim-search">Cerca ID nel file</label><input id="anim-search" @bind="query" @bind:after="FilterBodies" placeholder="Decimale o 0x…" disabled="@busy" />
-                <label for="anim-body">Corpo (@bodies.Count)</label><select id="anim-body" size="12" @bind="bodyId" @bind:after="ChangeBody" disabled="@(busy || bodies.Count == 0)">
+                <label for="anim-category">Category</label><select id="anim-category" @bind="category" @bind:after="FilterBodies" disabled="@busy"><option value="">All</option><option value="Animal">Animals</option><option value="Monster">Monsters</option><option value="Human">Humans / equipment</option></select>
+                <label for="anim-search">Find ID in file</label><input id="anim-search" @bind="query" @bind:after="FilterBodies" placeholder="Decimal or 0x…" disabled="@busy" />
+                <label for="anim-body">Body (@bodies.Count)</label><select id="anim-body" size="12" @bind="bodyId" @bind:after="ChangeBody" disabled="@(busy || bodies.Count == 0)">
                     @foreach (var body in bodies) { <option value="@body.Id">@($"0x{body.Id:X4} · {body.Id} — {TypeLabel(body.Type)}")</option> }
                 </select>
-                <p class="muted">Gli ID si riferiscono all'archivio selezionato. Le categorie seguono il layout MUL.</p>
+                <p class="muted">IDs refer to the selected archive. Categories follow the MUL layout.</p>
             </aside>
             <div class="animation-viewer">
-                @if (bodies.Count == 0) { <div class="empty-state"><h2>Nessun corpo trovato</h2><p>Cambia categoria, ID o archivio.</p></div> }
+                @if (bodies.Count == 0) { <div class="empty-state"><h2>No bodies found</h2><p>Change the category, ID or archive.</p></div> }
                 else
                 {
-                    <div class="sequence-controls"><label for="anim-action">Azione</label><select id="anim-action" @bind="actionId" @bind:after="ChangeAction">
+                    <div class="sequence-controls"><label for="anim-action">Action</label><select id="anim-action" @bind="actionId" @bind:after="ChangeAction">
                         @foreach (var action in actions) { <option value="@action.Id">@action.Id · @action.Name</option> }
-                    </select><label for="anim-direction">Direzione</label><select id="anim-direction" @bind="direction" @bind:after="LoadClip">
-                        @for (int d = 0; d < 8; d++) { <option value="@d" disabled="@(!HasDirection(d))">@d @(d > 4 ? "(specchiata)" : "") @(!HasDirection(d) ? "— assente" : "")</option> }
+                    </select><label for="anim-direction">Direction</label><select id="anim-direction" @bind="direction" @bind:after="LoadClip">
+                        @for (int d = 0; d < 8; d++) { <option value="@d" disabled="@(!HasDirection(d))">@d @(d > 4 ? "(mirrored)" : "") @(!HasDirection(d) ? "— missing" : "")</option> }
                     </select></div>
                     @if (atlas is not null)
                     {
                         <AnimationPreview Atlas="atlas" />
-                        <p class="muted">@($"Corpo 0x{bodyId:X4}") · @atlas.FrameCount frame · area @atlas.FrameWidth × @atlas.FrameHeight px · direzione @direction @(direction > 4 ? "specchiata" : "")</p>
+                        <p class="muted">@($"Body 0x{bodyId:X4}") · @atlas.FrameCount frames · area @atlas.FrameWidth × @atlas.FrameHeight px · direction @direction @(direction > 4 ? "mirrored" : "")</p>
                     }
                 }
             </div>
@@ -111,5 +112,5 @@
         try { atlas = Renderer.RenderAtlas(Source.Read(bodyId, actionId, direction)); }
         catch (Exception ex) when (ex is IOException or InvalidDataException or KeyNotFoundException or ArgumentException) { error = ex.Message; }
     }
-    private static string TypeLabel(AnimationBodyType type) => type switch { AnimationBodyType.Animal => "Animale", AnimationBodyType.Monster => "Mostro", _ => "Umano" };
+    private static string TypeLabel(AnimationBodyType type) => type switch { AnimationBodyType.Animal => "Animal", AnimationBodyType.Monster => "Monster", _ => "Human" };
 }

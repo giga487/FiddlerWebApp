@@ -7,9 +7,9 @@ internal static class MythicDecoder
     private const int FrequencyHeaderSize = 1024;
     public static byte[] Decode(ReadOnlySpan<byte> input, int limit)
     {
-        if (input.Length < 4) throw new InvalidDataException("Header Mythic troncato.");
+        if (input.Length < 4) throw new InvalidDataException("Truncated Mythic header.");
         uint size = BinaryPrimitives.ReadUInt32LittleEndian(input) ^ 0x8E2C9A3D;
-        if (size > limit) throw new InvalidDataException("Payload Mythic oltre il limite.");
+        if (size > limit) throw new InvalidDataException("Mythic payload exceeds the limit.");
         var decoded = new byte[input.Length-4];
         Span<byte> symbols = stackalloc byte[256];
         for (int i=0;i<256;i++) symbols[i]=(byte)i;
@@ -21,7 +21,7 @@ internal static class MythicDecoder
         }
         var result=new byte[(int)size];
         if (!TryInternalDecompress(decoded,result,out int written) || written!=result.Length)
-            throw new InvalidDataException("Payload Mythic non valido.");
+            throw new InvalidDataException("Invalid Mythic payload.");
         return result;
     }
         public static bool TryInternalDecompress(ReadOnlySpan<byte> input, Span<byte> destination, out int written)

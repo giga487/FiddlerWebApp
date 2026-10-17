@@ -10,7 +10,7 @@ public sealed class GumpCompositionRenderer
     public byte[] RenderPng(GumpComposition composition, int? selectedKey = null, bool showGrid = true)
     {
         using var surface = SKSurface.Create(new SKImageInfo(composition.Width, composition.Height))
-            ?? throw new InvalidOperationException("Impossibile creare il piano Skia.");
+            ?? throw new InvalidOperationException("Cannot create the Skia board.");
         var canvas = surface.Canvas;
         canvas.Clear(new SKColor(240, 244, 244));
         foreach (var piece in composition.Pieces)

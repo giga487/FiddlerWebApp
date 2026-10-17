@@ -46,7 +46,7 @@ public sealed class SkiaAssetRenderer
     private byte[] Render(DecodedImage image, int width, int height)
     {
         using var surface = SKSurface.Create(new SKImageInfo(width, height))
-            ?? throw new InvalidOperationException("Impossibile creare la superficie Skia.");
+            ?? throw new InvalidOperationException("Cannot create the Skia surface.");
         surface.Canvas.Clear(SKColors.Transparent);
         Draw(surface.Canvas, image, new SKRect(0, 0, width, height));
         using var snapshot = surface.Snapshot();

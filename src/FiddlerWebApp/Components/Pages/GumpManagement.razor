@@ -1,79 +1,80 @@
+@page "/gump/manage"
 @page "/gump/gestione"
 @inject MulWorkspace Workspace
 @inject ClientDirectorySettings Settings
 @inject SkiaAssetRenderer Renderer
 
-<PageTitle>Importazione e confronto Gump · Fiddler</PageTitle>
+<PageTitle>Gump import and comparison · Fiddler</PageTitle>
 <section class="gump-management">
-    <div class="section-label">GUMP / IMPORTAZIONE E CONFRONTO</div>
-    <div class="gump-management-heading"><div><h1>Gestione Gump</h1><p class="muted">Importa immagini o recupera Gump da un altro archivio.</p></div><a href="/gump">Torna al visualizzatore</a></div>
+    <div class="section-label">GUMP / IMPORT AND COMPARE</div>
+    <div class="gump-management-heading"><div><h1>Gump management</h1><p class="muted">Import images or copy Gumps from another archive.</p></div><a href="/gump">Back to viewer</a></div>
     @if (Error is not null) { <div class="notice error" role="alert">@Error</div> }
     @if (Info is not null) { <div class="notice success" role="status">@Info</div> }
-    @if (Busy) { <div class="notice" role="status">@OperationLabel @(OperationLabel == "Confronto in corso" ? $"{Progress}%" : "") <button type="button" @onclick="Cancel">Annulla operazione</button></div> }
+    @if (Busy) { <div class="notice" role="status">@OperationLabel @(OperationLabel == "Comparing" ? $"{Progress}%" : "") <button type="button" @onclick="Cancel">Cancel operation</button></div> }
     <section class="gump-panel">
-        <div class="gump-panel-heading"><div><h2>Archivio attuale</h2><p class="muted">@(Workspace.Gumps is null ? "Apri i Gump della cartella configurata." : $"{Workspace.DisplayName} · {Workspace.Gumps.Format} · {Workspace.Gumps.Entries.Count:N0} ID · {Workspace.Gumps.DirtyCount} modifiche in bozza")</p></div>
-            <FluentButton OnClick="OpenPrimary" Disabled="@(Busy || Workspace.Gumps?.HasChanges == true)">Apri cartella configurata</FluentButton></div>
-        @if (Workspace.Gumps?.HasChanges == true) { <p class="muted">Le bozze sono visibili anche nel visualizzatore. Salva una versione per conservarle oltre questa sessione.</p> }
+        <div class="gump-panel-heading"><div><h2>Current archive</h2><p class="muted">@(Workspace.Gumps is null ? "Open Gumps from the configured folder." : $"{Workspace.DisplayName} · {Workspace.Gumps.Format} · {Workspace.Gumps.Entries.Count:N0} ID · {Workspace.Gumps.DirtyCount} draft changes")</p></div>
+            <FluentButton OnClick="OpenPrimary" Disabled="@(Busy || Workspace.Gumps?.HasChanges == true)">Open configured folder</FluentButton></div>
+        @if (Workspace.Gumps?.HasChanges == true) { <p class="muted">Drafts are also visible in the viewer. Save a version to keep them beyond this session.</p> }
     </section>
     @if (Workspace.Gumps is not null)
     {
         <section class="gump-panel">
-            <h2>1 · Inserisci o sostituisci un Gump</h2>
-            <div class="gump-target"><label for="gump-target-id">ID di destinazione</label><input id="gump-target-id" @bind="Target" @bind:after="ShowSelection" disabled="@Busy" placeholder="1234 oppure 0x04D2" />
-                <span class="muted">@(TargetExists ? "ID esistente: verrà sostituito nella bozza." : "ID libero: verrà aggiunto alla bozza.")</span></div>
-            <label class="gump-upload-label" for="gump-png">PNG dal tuo PC (massimo 8 MiB)</label>
+            <h2>1 · Add or replace a Gump</h2>
+            <div class="gump-target"><label for="gump-target-id">Target ID</label><input id="gump-target-id" @bind="Target" @bind:after="ShowSelection" disabled="@Busy" placeholder="1234 or 0x04D2" />
+                <span class="muted">@(TargetExists ? "Existing ID: will be replaced in the draft." : "Unused ID: will be added to the draft.")</span></div>
+            <label class="gump-upload-label" for="gump-png">PNG from your PC (maximum 8 MiB)</label>
             <InputFile id="gump-png" @key="UploadVersion" OnChange="LoadPng" accept=".png,image/png" disabled="@Busy" />
-            <p class="muted">L'anteprima mostra il risultato convertito: RGB a 15 bit, alpha inferiore a 128 trasparente. Il nero opaco viene reso quasi nero per conservarne l'opacità.</p>
+            <p class="muted">The preview shows the converted result: 15-bit RGB; alpha below 128 is transparent. Opaque black becomes near-black to preserve opacity.</p>
             @if (Pending is not null)
             {
-                <div class="gump-pending"><div class="gump-image checker"><img src="@PendingImage" alt="PNG convertito nel formato Gump" /></div><div><strong>@PendingName</strong><p class="muted">@Pending.Width × @Pending.Height px · conversione pronta</p>
-                    <FluentButton Appearance="ButtonAppearance.Primary" OnClick="InsertPng" Disabled="Busy">@(TargetExists ? "Sostituisci nella bozza" : "Aggiungi alla bozza")</FluentButton>
-                    <FluentButton OnClick="ClearPending" Disabled="Busy">Chiudi anteprima PNG</FluentButton></div></div>
+                <div class="gump-pending"><div class="gump-image checker"><img src="@PendingImage" alt="PNG converted to Gump format" /></div><div><strong>@PendingName</strong><p class="muted">@Pending.Width × @Pending.Height px · conversion ready</p>
+                    <FluentButton Appearance="ButtonAppearance.Primary" OnClick="InsertPng" Disabled="Busy">@(TargetExists ? "Replace in draft" : "Add to draft")</FluentButton>
+                    <FluentButton OnClick="ClearPending" Disabled="Busy">Close PNG preview</FluentButton></div></div>
             }
-            <div class="gump-draft-actions"><FluentButton OnClick="UndoTarget" Disabled="@(Busy || !TargetModified)">Annulla modifica di questo ID</FluentButton>
-                <FluentButton OnClick="DiscardAll" Disabled="@(Busy || !Workspace.Gumps.HasChanges)">Scarta tutte le bozze</FluentButton></div>
+            <div class="gump-draft-actions"><FluentButton OnClick="UndoTarget" Disabled="@(Busy || !TargetModified)">Undo changes to this ID</FluentButton>
+                <FluentButton OnClick="DiscardAll" Disabled="@(Busy || !Workspace.Gumps.HasChanges)">Discard all drafts</FluentButton></div>
         </section>
         <section class="gump-panel">
-            <h2>2 · Confronta un altro archivio</h2>
-            <label for="gump-reference">File MUL o UOP, oppure cartella sul server</label>
-            <input id="gump-reference" class="full-width" @bind="ReferencePath" disabled="@Busy" placeholder="D:\Confronto\gumpartLegacyMUL.uop" />
-            <label for="gump-reference-index">Indice per il MUL (facoltativo: gumpidx.mul nella stessa cartella)</label>
-            <div class="gump-path-row"><input id="gump-reference-index" @bind="ReferenceIndex" disabled="@Busy" placeholder="D:\Confronto\gumpidx.mul" />
-                <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Compare" Disabled="Busy">Confronta</FluentButton></div>
-            @if (ReferenceName is not null) { <p class="muted">Riferimento aperto: @ReferenceName</p> }
+            <h2>2 · Compare another archive</h2>
+            <label for="gump-reference">MUL or UOP file, or folder on the server</label>
+            <input id="gump-reference" class="full-width" @bind="ReferencePath" disabled="@Busy" placeholder="D:\Reference\gumpartLegacyMUL.uop" />
+            <label for="gump-reference-index">MUL index (optional: gumpidx.mul in the same folder)</label>
+            <div class="gump-path-row"><input id="gump-reference-index" @bind="ReferenceIndex" disabled="@Busy" placeholder="D:\Reference\gumpidx.mul" />
+                <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Compare" Disabled="Busy">Compare</FluentButton></div>
+            @if (ReferenceName is not null) { <p class="muted">Open reference: @ReferenceName</p> }
             @if (Rows.Count > 0)
             {
                 <div class="gump-comparison-summary">
                     @foreach (var status in Enum.GetValues<Fiddler.Formats.Gumps.GumpDifference>()) { <span><strong>@Rows.Count(row => row.Difference == status)</strong> @DifferenceLabel(status)</span> }
                 </div>
-                <label class="gump-filter"><input type="checkbox" @bind="OnlyDifferences" @bind:after="ResetPage" /> Mostra solo differenze e problemi</label>
-                <div class="file-table-container"><table class="file-table"><thead><tr><th>ID</th><th>Confronto</th><th>Dettaglio</th><th>Anteprima</th></tr></thead><tbody>
+                <label class="gump-filter"><input type="checkbox" @bind="OnlyDifferences" @bind:after="ResetPage" /> Show only differences and issues</label>
+                <div class="file-table-container"><table class="file-table"><thead><tr><th>ID</th><th>Comparison</th><th>Details</th><th>Preview</th></tr></thead><tbody>
                     @foreach (var row in PageRows)
                     {
-                        <tr><td>@($"0x{row.Id:X4}") (@row.Id)</td><td>@DifferenceLabel(row.Difference)</td><td>@row.Detail</td><td><button type="button" disabled="@Busy" @onclick="() => SelectComparison(row.Id)">Mostra</button></td></tr>
+                        <tr><td>@($"0x{row.Id:X4}") (@row.Id)</td><td>@DifferenceLabel(row.Difference)</td><td>@row.Detail</td><td><button type="button" disabled="@Busy" @onclick="() => SelectComparison(row.Id)">Show</button></td></tr>
                     }
                 </tbody></table></div>
-                <div class="pagination"><FluentButton OnClick="PreviousPage" Disabled="@(Busy || Page == 0)">Precedente</FluentButton><span>Pagina @(Page + 1) di @PageCount</span><FluentButton OnClick="NextPage" Disabled="@(Busy || Page + 1 >= PageCount)">Successiva</FluentButton></div>
+                <div class="pagination"><FluentButton OnClick="PreviousPage" Disabled="@(Busy || Page == 0)">Previous</FluentButton><span>Page @(Page + 1) of @PageCount</span><FluentButton OnClick="NextPage" Disabled="@(Busy || Page + 1 >= PageCount)">Next</FluentButton></div>
             }
             <div class="gump-side-by-side">
-                <div><h3>Attuale · ID @Target</h3><div class="gump-image checker">
-                    @if (CurrentImage is not null) { <img src="@CurrentImage" alt="Gump attuale, incluse le bozze" /> } else { <p class="muted">@(CurrentDetail ?? "ID non presente.")</p> }
+                <div><h3>Current · ID @Target</h3><div class="gump-image checker">
+                    @if (CurrentImage is not null) { <img src="@CurrentImage" alt="Current Gump, including drafts" /> } else { <p class="muted">@(CurrentDetail ?? "ID not found.")</p> }
                 </div></div>
-                <div><h3>Riferimento @(SelectedReference is int refId ? $"· ID 0x{refId:X4}" : "")</h3><div class="gump-image checker">
-                    @if (ReferenceImage is not null) { <img src="@ReferenceImage" alt="Gump nell'archivio di riferimento" /> } else { <p class="muted">@(ReferenceDetail ?? "Seleziona una riga del confronto.")</p> }
+                <div><h3>Reference @(SelectedReference is int refId ? $"· ID 0x{refId:X4}" : "")</h3><div class="gump-image checker">
+                    @if (ReferenceImage is not null) { <img src="@ReferenceImage" alt="Gump in the reference archive" /> } else { <p class="muted">@(ReferenceDetail ?? "Select a comparison row.")</p> }
                 </div></div>
             </div>
-            <FluentButton Appearance="ButtonAppearance.Primary" OnClick="CopyReference" Disabled="@(Busy || ReferenceImage is null)">Copia il riferimento nell'ID di destinazione</FluentButton>
+            <FluentButton Appearance="ButtonAppearance.Primary" OnClick="CopyReference" Disabled="@(Busy || ReferenceImage is null)">Copy reference to target ID</FluentButton>
         </section>
         <section class="gump-panel">
-            <h2>3 · Salva una versione completa</h2>
-            <p class="muted">Scrive tutti i Gump attuali, incluse le bozze, in una nuova sottocartella con gumpart.mul e gumpidx.mul. Gli archivi originali restano invariati. Il risultato viene salvato sul server.</p>
-            <label for="gump-output">Cartella di destinazione sul server</label>
-            <div class="gump-path-row"><input id="gump-output" @bind="OutputParent" disabled="@Busy" /><FluentButton Appearance="ButtonAppearance.Primary" OnClick="Export" Disabled="Busy">Salva nuova coppia MUL/IDX</FluentButton></div>
+            <h2>3 · Save a complete version</h2>
+            <p class="muted">Writes all current Gumps, including drafts, to a new subfolder containing gumpart.mul and gumpidx.mul. Original archives remain unchanged. The result is saved on the server.</p>
+            <label for="gump-output">Output folder on the server</label>
+            <div class="gump-path-row"><input id="gump-output" @bind="OutputParent" disabled="@Busy" /><FluentButton Appearance="ButtonAppearance.Primary" OnClick="Export" Disabled="Busy">Save new MUL/IDX pair</FluentButton></div>
             @if (ExportedDirectory is not null)
             {
-                <p class="muted">Versione salvata: <strong class="saved-directory">@ExportedDirectory</strong></p>
-                <FluentButton OnClick="OpenExport" Disabled="Busy">Usa la versione salvata nel workspace</FluentButton>
+                <p class="muted">Saved version: <strong class="saved-directory">@ExportedDirectory</strong></p>
+                <FluentButton OnClick="OpenExport" Disabled="Busy">Use saved version in workspace</FluentButton>
             }
         </section>
     }
