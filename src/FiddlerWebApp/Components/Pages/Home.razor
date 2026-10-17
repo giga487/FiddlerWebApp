@@ -47,7 +47,13 @@
                 <button class="search-submit" type="submit" disabled="@busy">Find</button>
                 <FluentButton OnClick="ResetSearch" Disabled="busy">All</FluentButton>
             </form>
-            <div class="results-summary" aria-live="polite">@filtered.Count.ToString("N0") assets · @Workspace.DisplayName</div>
+            <div class="results-toolbar">
+                <div class="results-summary" aria-live="polite">@filtered.Count.ToString("N0") assets · @Workspace.DisplayName</div>
+                <label class="page-size">Show
+                    <select @bind="pageSize" @bind:after="ChangePageSize" disabled="@busy" aria-label="Assets per page">
+                        @foreach (int size in PageSizes) { <option value="@size">@size</option> }
+                    </select> per page</label>
+            </div>
             @if (filtered.Count == 0)
             {
                 <div class="empty-state"><h3>No assets found</h3><p>Check the ID or select another collection.</p></div>
@@ -96,16 +102,18 @@
 </div>
 
 @code {
-    private const int PageSize = 24;
+    // Thumbnails are rendered server-side and sent as data URIs, so the largest size stays bounded.
+    private static readonly int[] PageSizes = [24, 48, 96, 192];
+    private int pageSize = PageSizes[0];
     private AssetKind kind = AssetKind.Gump;
     private IReadOnlyList<MulEntry> filtered = [];
     private readonly List<Tile> tiles = [];
     private MulEntry? selected;
     private string query = "", appliedQuery = "";
     private string? error, preview, previewError;
-    private int page, selectedWidth, selectedHeight, zoom = 1;
+    private int page, firstShown, selectedWidth, selectedHeight, zoom = 1;
     private bool busy;
-    private int PageCount => Math.Max(1, (filtered.Count + PageSize - 1) / PageSize);
+    private int PageCount => Math.Max(1, (filtered.Count + pageSize - 1) / pageSize);
     private sealed record Tile(MulEntry Entry, string? Image, int Width, int Height, string? Error);
     private static string Label(AssetKind value) => value switch { AssetKind.Land => "Land tiles", AssetKind.Item => "Items", _ => "Gump" };
 
@@ -154,10 +162,17 @@
     }
     private void Previous() { page = Math.Max(0, page - 1); LoadPage(); }
     private void Next() { page = Math.Min(PageCount - 1, page + 1); LoadPage(); }
+    private void ChangePageSize()
+    {
+        // Keep the first asset that was on screen inside the new page.
+        page = Math.Min(PageCount - 1, firstShown / pageSize);
+        LoadPage();
+    }
     private void LoadPage()
     {
         tiles.Clear();
-        foreach (var entry in filtered.Skip(page * PageSize).Take(PageSize))
+        firstShown = page * pageSize;
+        foreach (var entry in filtered.Skip(firstShown).Take(pageSize))
         {
             try
             {
