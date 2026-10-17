@@ -1,14 +1,19 @@
 using Fiddler.Formats.Animations;
+using FiddlerWebApp.Services.Users;
 
 namespace FiddlerWebApp.Services;
 
 public sealed class AnimationWorkspace : IDisposable
 {
+    private readonly UserSession? user;
+    public AnimationWorkspace() { }
+    public AnimationWorkspace(UserSession user) => this.user = user;
     public IReadOnlyList<AnimationMulReader> Readers { get; private set; } = [];
     public IReadOnlyList<string> Warnings { get; private set; } = [];
 
     public void Open(string directory)
     {
+        user?.RequireUser();
         if (string.IsNullOrWhiteSpace(directory)) throw new InvalidDataException("Configure the client data folder first.");
         var files = new DirectoryInfo(directory).EnumerateFiles().ToDictionary(file => file.Name, file => file.FullName, StringComparer.OrdinalIgnoreCase);
         var readers = new List<AnimationMulReader>();

@@ -14,6 +14,8 @@
         <a class="configure-link" href="/configuration">Configure folder and check files</a>
         <a class="configure-link" href="/gump/manage">Import and compare Gumps</a>
         <a class="configure-link" href="/gump/composition">Compose Gumps on a grid</a>
+        @if (Workspace.Gumps is not null)
+        { <FluentButton OnClick="RefreshSharedWorkspace" Disabled="busy">Refresh shared Gumps</FluentButton><p class="muted">Shared revision @Workspace.SharedRevision</p> }
         @if (Workspace.Gumps?.HasChanges == true) { <p class="muted">@Workspace.Gumps.DirtyCount Gump drafts</p> }
         <div class="section-label collection-label">COLLECTIONS</div>
         <nav class="collections" aria-label="MUL collections">
@@ -128,6 +130,11 @@
         finally { busy = false; }
     }
     private void ChangeKind(AssetKind value) { kind = value; query = appliedQuery = ""; Refresh(); }
+    private void RefreshSharedWorkspace()
+    {
+        try { Workspace.RefreshShared(); Refresh(); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or InvalidOperationException) { error = ex.Message; }
+    }
     private void ResetSearch() { query = appliedQuery = ""; Refresh(); }
     private void Search()
     {

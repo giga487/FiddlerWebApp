@@ -1,22 +1,52 @@
 @inherits LayoutComponentBase
 @inject IThemeService Theme
+@using FiddlerWebApp.Services.Users
+@implements IAsyncDisposable
+@inject UserSession Session
+@inject SignInFeatures Features
+@inject NavigationManager Navigation
 
 <header class="app-header">
     <a class="brand" href="/" aria-label="Fiddler Web App"><span class="brand-mark">F</span> Fiddler <span class="brand-web">WEB APP</span></a>
     <span class="project-label">SEAHATS / ASSET STUDIO</span>
-    <nav class="header-nav" aria-label="Main navigation"><NavLink href="/gump">Gump / Art</NavLink><NavLink href="/multi">Multi</NavLink><NavLink href="/maps">Maps</NavLink><NavLink href="/animations">Animations</NavLink><NavLink href="/configuration">Configuration</NavLink></nav>
-    <span class="read-only">Workspace</span>
+    @if (Session.IsSignedIn)
+    {
+        <nav class="header-nav" aria-label="Main navigation"><NavLink href="/gump">Gump / Art</NavLink><NavLink href="/multi">Multi</NavLink><NavLink href="/maps">Maps</NavLink><NavLink href="/animations">Animations</NavLink><NavLink href="/configuration">Configuration</NavLink><NavLink href="/users">Users</NavLink></nav>
+        <a class="user-badge" href="/users"><strong>@Session.User!.Name</strong><small>@Session.User.Provider</small></a>
+        @if (!Features.OpenAccess)
+        { <form method="post" action="/account/sign-out" data-enhance="false"><AntiforgeryToken /><button class="user-sign-out" type="submit">Sign out</button></form> }
+    }
+    else { <span class="read-only">Not signed in</span> }
 </header>
 <main>@Body</main>
 <FluentProviders />
 <div id="blazor-error-ui" data-nosnippet>The session encountered an error. <a href="/">Reopen the application</a></div>
 
 @code {
+    private readonly CancellationTokenSource lifetime = new();
+    private Task? heartbeat;
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             await Theme.SetThemeAsync(new ThemeSettings("#087f79", 0, 0, ThemeMode.Light, true));
+            if (Session.IsSignedIn) heartbeat = Heartbeat();
         }
     }
+    private async Task Heartbeat()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(lifetime.Token))
+                await InvokeAsync(() =>
+                {
+                    if (!Session.IsSignedIn) { Session.Dispose(); Navigation.NavigateTo("/", forceLoad: true); return; }
+                    Session.Heartbeat(); StateHasChanged();
+                });
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+    }
+    public async ValueTask DisposeAsync()
+    { lifetime.Cancel(); if (heartbeat is not null) await heartbeat; lifetime.Dispose(); }
 }

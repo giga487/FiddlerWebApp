@@ -22,6 +22,11 @@ Maps have dedicated readers. Containers handle binary storage; Imaging holds
 shared pixel and drawing primitives. `Graphics/World` renders isometric Multi and
 map previews. Sounds currently have file inventory support only.
 
+The authenticated [HTTP API v1](docs/http-api.md) exposes asset reading, PNG
+rendering, file scans and collaborative Gump editing through independent
+user-owned workspaces. Download its OpenAPI contract at `/api/openapi/v1.json`
+after signing in. MCP and machine tokens are deferred until API validation.
+
 ## Run
 
 Requires .NET SDK 10. From this repository:
@@ -30,12 +35,22 @@ Requires .NET SDK 10. From this repository:
 dotnet run --project src/FiddlerWebApp -- --Mul:Directory="D:\Data\Client"
 ```
 
-Open the localhost URL printed in the console and click **Open archive**.
+Open the localhost URL printed in the console and sign in, then click **Open archive**.
+Google sign-in requires server-side credentials; see [users and collaboration](docs/users-and-collaboration.md).
+To use the application without any sign-in, set `Authentication:Mode` to `Open`
+(`--Authentication:Mode=Open` or `Authentication__Mode=Open`); every visitor then
+shares one local user. The default is `Required`. The `http` and `https` launch
+profiles in `Properties/launchSettings.json` use `Open`.
+For explicit local testing, use the Development environment with
+`--Authentication:DevelopmentProfiles=true`. Development profiles are disabled
+by default and cannot be enabled in Production.
 Alternatively, open **Configuration**, enter an absolute server folder path,
 click **Scan folder**, then **Save folder**. Saved settings override the initial
-`Mul:Directory` value and are stored in `App_Data/client-directory.json`, outside
-`wwwroot` and excluded from Git. The folder setting is application-wide; readers
-already open in other sessions remain active until those sessions reopen them.
+`Mul:Directory` value for that user and are stored under
+`App_Data/users/<account-hash>/client-directory.json`, outside wwwroot and Git.
+Each user has independent file settings; readers already open in another session
+remain active until that session reopens them. The old application-wide setting
+is preserved on disk but is not automatically assigned to every new user.
 The path belongs to the computer running the backend, rather than the browser.
 You can also set `Mul:Directory` in appsettings.json or use `Mul__Directory`.
 Game files remain outside the repository and wwwroot.
@@ -116,9 +131,14 @@ Linux server is still required.
 
 Open **Import and compare Gumps** or `/gump/manage`. Add or replace a Gump from
 PNG, compare a second MUL/IDX or UOP, or copy a reference ID to the selected target.
-Skia previews show the actual 15-bit RGB, one-bit alpha conversion. Changes are
-visible throughout the workspace and can be undone. Saving writes a complete
-MUL/IDX pair in a unique new subfolder and preserves original files.
+Skia previews show the actual 15-bit RGB, one-bit alpha conversion. Reserve an ID
+with **Start editing ID** before modifying it. Drafts are private to the session
+and visible throughout that workspace. Publishing merges them with the latest
+shared version, writes a complete new MUL/IDX pair and preserves original files.
+Other users can edit different IDs in the same archive and see published changes
+with **Refresh shared version**. Conflicting or expired edits cannot overwrite
+a newer shared version. The header identifies the current user; `/users` lists
+active users and edit leases.
 PNG uploads come from the browser's PC; comparison and output paths are on the
 server. Comparison uses decoded pixels and reports Equal, Different, Current
 only, Reference only and Unreadable. See [Gump management](docs/gump-management.md).
@@ -178,6 +198,7 @@ graphics state across users. Real client data still needs verification.
 
 ## Next steps
 
-Current work focuses on formats and visualization. Google login, authorization,
-publishing and downloads will follow. This development app uses localhost;
-integrate access control before exposing it to the Internet.
+Current work focuses on formats, visualization and shared Gump editing. Google
+sign-in is configurable, with an optional account allowlist. Deployment and
+authenticated asset downloads remain future work. Edit coordination currently
+supports one server process; multiple workers need a distributed lock/version store.

@@ -2,12 +2,16 @@ using Fiddler.Formats;
 using Fiddler.Formats.Art;
 using Fiddler.Formats.Maps;
 using Fiddler.Formats.Multis;
+using FiddlerWebApp.Services.Users;
 
 namespace FiddlerWebApp.Services;
 
 /// <summary>Session-owned readers, independent of the editable Gump workspace.</summary>
 public sealed class WorldAssetWorkspace : IDisposable
 {
+    private readonly UserSession? user;
+    public WorldAssetWorkspace() { }
+    public WorldAssetWorkspace(UserSession user) => this.user = user;
     private ArtArchive? art;
     public MultiArchive? Multis { get; private set; }
     public MapArchive? Map { get; private set; }
@@ -17,6 +21,7 @@ public sealed class WorldAssetWorkspace : IDisposable
     public DecodedImage ReadArt(int id, bool land) => art?.Read(id, land) ?? throw new KeyNotFoundException("art.mul + artidx.mul or artLegacyMUL.uop is required.");
     public void OpenMultis(string directory, bool? preferUop, int rowSize)
     {
+        user?.RequireUser();
         var files = Files(directory);
         bool useUop = preferUop ?? files.ContainsKey("multicollection.uop");
         ArtArchive? nextArt = null;
@@ -32,6 +37,7 @@ public sealed class WorldAssetWorkspace : IDisposable
     }
     public void OpenMap(string directory, int facet, bool? preferUop, bool includeStatics)
     {
+        user?.RequireUser();
         var files = Files(directory);
         bool useUop = preferUop ?? files.ContainsKey($"map{facet}legacymul.uop");
         ArtArchive? nextArt = null;

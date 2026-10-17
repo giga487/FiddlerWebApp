@@ -1,0 +1,25 @@
+@using FiddlerWebApp.Services.Users
+@inject SignInFeatures Features
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in · Fiddler</PageTitle>
+<section class="user-page sign-in-panel">
+    <div class="section-label">YOUR WORKSPACE</div><h1>Sign in to Fiddler</h1>
+    <p>Your identity, file settings, drafts and edit leases belong to your user context.</p>
+    @if (Navigation.Uri.Contains("authError=", StringComparison.Ordinal))
+    { <div class="notice error" role="alert">Sign-in could not be completed. Check the account permissions and Google sign-in configuration, then try again.</div> }
+    @if (Features.Google)
+    { <a class="user-primary-link" href="/account/sign-in" data-enhance-nav="false">Continue with Google</a> }
+    else
+    { <p class="notice">Google sign-in is not configured. Set Authentication:Google:ClientId and Authentication:Google:ClientSecret on the server, or set Authentication:Mode to Open to use the application without signing in.</p> }
+    @if (Features.DevelopmentProfiles)
+    {
+        <h2>Development profile</h2>
+        <p class="muted">Local testing only. This display name is not a verified identity.</p>
+        <form method="post" action="/account/development-profile" data-enhance="false">
+            <AntiforgeryToken />
+            <label for="profile-name">Display name</label><input id="profile-name" name="name" required minlength="2" maxlength="60" />
+            <button type="submit">Start development session</button>
+        </form>
+    }
+</section>

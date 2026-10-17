@@ -3,6 +3,8 @@
 @inject MulWorkspace Workspace
 @inject ClientDirectorySettings Settings
 @inject SkiaAssetRenderer Renderer
+@using FiddlerWebApp.Services.Users
+@inject UserSession Session
 
 <PageTitle>Gump import and comparison · Fiddler</PageTitle>
 <section class="gump-management">
@@ -15,6 +17,11 @@
         <div class="gump-panel-heading"><div><h2>Current archive</h2><p class="muted">@(Workspace.Gumps is null ? "Open Gumps from the configured folder." : $"{Workspace.DisplayName} · {Workspace.Gumps.Format} · {Workspace.Gumps.Entries.Count:N0} ID · {Workspace.Gumps.DirtyCount} draft changes")</p></div>
             <FluentButton OnClick="OpenPrimary" Disabled="@(Busy || Workspace.Gumps?.HasChanges == true)">Open configured folder</FluentButton></div>
         @if (Workspace.Gumps?.HasChanges == true) { <p class="muted">Drafts are also visible in the viewer. Save a version to keep them beyond this session.</p> }
+        @if (Workspace.Gumps is not null)
+        {
+            <p class="muted">Shared revision @Workspace.SharedRevision · @Session.User?.Name</p>
+            <FluentButton OnClick="RefreshShared" Disabled="Busy">Refresh shared version</FluentButton>
+        }
     </section>
     @if (Workspace.Gumps is not null)
     {
@@ -22,13 +29,23 @@
             <h2>1 · Add or replace a Gump</h2>
             <div class="gump-target"><label for="gump-target-id">Target ID</label><input id="gump-target-id" @bind="Target" @bind:after="ShowSelection" disabled="@Busy" placeholder="1234 or 0x04D2" />
                 <span class="muted">@(TargetExists ? "Existing ID: will be replaced in the draft." : "Unused ID: will be added to the draft.")</span></div>
+            <div class="edit-lease-panel" aria-live="polite">
+                @if (TargetLease is { } lease)
+                { <p>@(lease.SessionId == Session.SessionId ? "You are editing this ID." : $"This ID is being edited by {lease.UserName}.") @(lease.Saving ? "Publishing in progress." : "")</p> }
+                else { <p>This ID is available. Start editing to reserve it before importing or replacing an image.</p> }
+                <p class="muted">Other users can still view and compare this ID. Drafts stay private until published.</p>
+                <div class="edit-lease-actions">
+                    <FluentButton OnClick="StartEditing" Disabled="@(Busy || OwnsTarget)">Start editing ID</FluentButton>
+                    <FluentButton OnClick="ReleaseTarget" Disabled="@(Busy || !OwnsTarget || TargetModified)">Release ID</FluentButton>
+                </div>
+            </div>
             <label class="gump-upload-label" for="gump-png">PNG from your PC (maximum 8 MiB)</label>
             <InputFile id="gump-png" @key="UploadVersion" OnChange="LoadPng" accept=".png,image/png" disabled="@Busy" />
             <p class="muted">The preview shows the converted result: 15-bit RGB; alpha below 128 is transparent. Opaque black becomes near-black to preserve opacity.</p>
             @if (Pending is not null)
             {
                 <div class="gump-pending"><div class="gump-image checker"><img src="@PendingImage" alt="PNG converted to Gump format" /></div><div><strong>@PendingName</strong><p class="muted">@Pending.Width × @Pending.Height px · conversion ready</p>
-                    <FluentButton Appearance="ButtonAppearance.Primary" OnClick="InsertPng" Disabled="Busy">@(TargetExists ? "Replace in draft" : "Add to draft")</FluentButton>
+                    <FluentButton Appearance="ButtonAppearance.Primary" OnClick="InsertPng" Disabled="@(Busy || !OwnsTarget)">@(TargetExists ? "Replace in draft" : "Add to draft")</FluentButton>
                     <FluentButton OnClick="ClearPending" Disabled="Busy">Close PNG preview</FluentButton></div></div>
             }
             <div class="gump-draft-actions"><FluentButton OnClick="UndoTarget" Disabled="@(Busy || !TargetModified)">Undo changes to this ID</FluentButton>
@@ -64,17 +81,17 @@
                     @if (ReferenceImage is not null) { <img src="@ReferenceImage" alt="Gump in the reference archive" /> } else { <p class="muted">@(ReferenceDetail ?? "Select a comparison row.")</p> }
                 </div></div>
             </div>
-            <FluentButton Appearance="ButtonAppearance.Primary" OnClick="CopyReference" Disabled="@(Busy || ReferenceImage is null)">Copy reference to target ID</FluentButton>
+            <FluentButton Appearance="ButtonAppearance.Primary" OnClick="CopyReference" Disabled="@(Busy || ReferenceImage is null || !OwnsTarget)">Copy reference to target ID</FluentButton>
         </section>
         <section class="gump-panel">
             <h2>3 · Save a complete version</h2>
-            <p class="muted">Writes all current Gumps, including drafts, to a new subfolder containing gumpart.mul and gumpidx.mul. Original archives remain unchanged. The result is saved on the server.</p>
+            <p class="muted">Merges your drafts with the latest published shared version and writes a complete new MUL/IDX pair. Other users' published IDs are preserved. Original archives remain unchanged.</p>
             <label for="gump-output">Output folder on the server</label>
-            <div class="gump-path-row"><input id="gump-output" @bind="OutputParent" disabled="@Busy" /><FluentButton Appearance="ButtonAppearance.Primary" OnClick="Export" Disabled="Busy">Save new MUL/IDX pair</FluentButton></div>
+            <div class="gump-path-row"><input id="gump-output" @bind="OutputParent" disabled="@Busy" /><FluentButton Appearance="ButtonAppearance.Primary" OnClick="Export" Disabled="@(Busy || !Workspace.Gumps.HasChanges)">Publish new MUL/IDX version</FluentButton></div>
             @if (ExportedDirectory is not null)
             {
                 <p class="muted">Saved version: <strong class="saved-directory">@ExportedDirectory</strong></p>
-                <FluentButton OnClick="OpenExport" Disabled="Busy">Use saved version in workspace</FluentButton>
+                <FluentButton OnClick="OpenExport" Disabled="Busy">Refresh to latest shared version</FluentButton>
             }
         </section>
     }

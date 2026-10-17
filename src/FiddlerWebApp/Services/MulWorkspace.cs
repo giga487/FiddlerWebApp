@@ -1,12 +1,24 @@
 using Fiddler.Formats;
 using Fiddler.Formats.Art;
 using Fiddler.Formats.Gumps;
+using FiddlerWebApp.Services.Users;
 
 namespace FiddlerWebApp.Services;
 
 /// <summary>Session-scoped archive ownership. No global mutable client profile.</summary>
 public sealed class MulWorkspace : IDisposable
 {
+    private readonly UserSession? user;
+    private readonly SharedGumpStore? shared;
+    private readonly ResourceLeaseManager? leases;
+    private SharedGumpSnapshot? snapshot;
+    private readonly Dictionary<int, GumpEditClaim> claims = [];
+    public long SharedRevision => snapshot?.Revision ?? 0;
+    public bool Collaborative => shared is not null;
+    public string? ArchiveKey => snapshot?.Archive;
+    public MulWorkspace() { }
+    public MulWorkspace(UserSession user, SharedGumpStore shared, ResourceLeaseManager leases)
+    { this.user = user; this.shared = shared; this.leases = leases; }
     private ArtMulReader? art;
     private GumpDocument? gumps;
     public GumpDocument? Gumps => gumps;
@@ -16,6 +28,7 @@ public sealed class MulWorkspace : IDisposable
 
     public void Open(string directory, bool discardChanges = false)
     {
+        user?.RequireUser();
         if (gumps?.HasChanges == true && !discardChanges)
             throw new InvalidOperationException("There are Gump drafts: save a version or discard changes before opening another archive.");
         if (string.IsNullOrWhiteSpace(directory))
@@ -26,12 +39,16 @@ public sealed class MulWorkspace : IDisposable
             StringComparer.OrdinalIgnoreCase);
         ArtMulReader? nextArt = null;
         GumpDocument? nextGumps = null;
+        SharedGumpSnapshot? nextSnapshot = null;
         try
         {
             if (files.TryGetValue("artidx.mul", out var artIndex) && files.TryGetValue("art.mul", out var artData))
                 nextArt = ArtMulReader.Open(artIndex, artData);
             if (files.ContainsKey("gumpidx.mul") && files.ContainsKey("gumpart.mul") || files.ContainsKey("gumpartlegacymul.uop"))
-                nextGumps = GumpDocument.Open(folder.FullName);
+            {
+                nextSnapshot = shared?.Open(folder.FullName);
+                nextGumps = nextSnapshot?.Document ?? GumpDocument.Open(folder.FullName);
+            }
             if (nextArt is null && nextGumps is null)
                 throw new InvalidDataException("No MUL pair found. Expected artidx.mul + art.mul or gumpidx.mul + gumpart.mul.");
         }
@@ -42,6 +59,7 @@ public sealed class MulWorkspace : IDisposable
         }
         Dispose();
         art = nextArt; gumps = nextGumps;
+        snapshot = nextSnapshot;
         DisplayName = folder.Name;
         CurrentDirectory = folder.FullName;
     }
@@ -62,8 +80,63 @@ public sealed class MulWorkspace : IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(entry))
     }) ?? throw new InvalidOperationException("Archive is not open.");
 
+    public EditLease BeginEdit(int id)
+    {
+        var actor = user?.RequireUser() ?? throw new InvalidOperationException("A signed-in user context is required for editing.");
+        if (id < 0 || id >= GumpUopReader.MaxSlots || snapshot is null || shared is null || leases is null)
+            throw new InvalidOperationException("Open a shared Gump workspace and select a valid ID.");
+        if (claims.TryGetValue(id, out var unused) && gumps?.IsModified(id) != true && !OwnsEdit(id)) claims.Remove(id);
+        if (claims.TryGetValue(id, out var old))
+        {
+            // A lost lease may be reacquired only if nobody published the ID in the meantime.
+            if (shared.Version(CurrentDirectory, id) != old.Version)
+                throw new InvalidOperationException("This ID has a newer shared version. Discard its draft and refresh before editing it again.");
+        }
+        else if (shared.Version(CurrentDirectory, id) != snapshot.Versions.GetValueOrDefault(id)) RefreshShared();
+        var lease = leases.Acquire(new(snapshot!.Archive, "Gump", id), user.SessionId, actor);
+        claims[id] = new(lease, old?.Version ?? snapshot.Versions.GetValueOrDefault(id));
+        return lease;
+    }
+    public IReadOnlyList<EditLease> EditLeases() => snapshot is null || leases is null ? [] : leases.List(snapshot.Archive);
+    public bool OwnsEdit(int id) => claims.TryGetValue(id, out var claim) && EditLeases().Any(l => l.Token == claim.Lease.Token && l.SessionId == user?.SessionId);
+    public void PutGump(int id, GumpRecord record)
+    {
+        user?.RequireUser();
+        if (gumps is null || leases is null || !claims.TryGetValue(id, out var claim)) throw new InvalidOperationException("Start editing this ID before changing it.");
+        leases.ExecuteOwned(claim.Lease, () => gumps.Put(id, record));
+    }
+    public void UndoGump(int id)
+    { user?.RequireUser(); gumps?.Undo(id); ReleaseEdit(id); }
+    public void ReleaseEdit(int id)
+    {
+        if (gumps?.IsModified(id) == true) throw new InvalidOperationException("Save or undo this ID's draft before releasing it.");
+        if (claims.Remove(id, out var claim)) leases?.Release(claim.Lease);
+    }
+    public void DiscardGumps()
+    { user?.RequireUser(); gumps?.Discard(); ReleaseClaims(); }
+    private void ReleaseClaims()
+    { foreach (var claim in claims.Values) leases?.Release(claim.Lease); claims.Clear(); }
+    public void RefreshShared()
+    {
+        user?.RequireUser();
+        if (shared is null || snapshot is null) throw new InvalidOperationException("No shared Gump workspace is open.");
+        var next = shared.Open(CurrentDirectory);
+        try { foreach (var pair in gumps!.GetChanges()) next.Document.Put(pair.Key, pair.Value); }
+        catch { next.Document.Dispose(); throw; }
+        gumps!.Dispose(); snapshot = next; gumps = next.Document;
+    }
+    public async Task<SharedGumpSave> SaveSharedAsync(string output, CancellationToken token)
+    {
+        user?.RequireUser();
+        if (shared is null || snapshot is null || gumps is null || user is null) throw new InvalidOperationException("No shared Gump workspace is open.");
+        var result = await shared.SaveAsync(CurrentDirectory, snapshot, gumps.GetChanges(), new Dictionary<int, GumpEditClaim>(claims), user.SessionId, output, token);
+        gumps.Discard(); ReleaseClaims(); RefreshShared();
+        return result;
+    }
+
     public void Dispose()
     {
+        ReleaseClaims(); snapshot = null;
         art?.Dispose(); gumps?.Dispose();
         art = null; gumps = null;
     }
