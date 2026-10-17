@@ -1,0 +1,113 @@
+@page "/configurazione"
+@using Fiddler.Formats.Catalog
+@implements IDisposable
+@inject ClientDirectoryScanner Scanner
+@inject ClientDirectorySettings Settings
+@inject MulWorkspace Workspace
+@inject AnimationWorkspace Animations
+
+<PageTitle>Configurazione cartella · Fiddler</PageTitle>
+<section class="configuration">
+    <div class="section-label">WORKSPACE / CONFIGURAZIONE</div>
+    <h1>Cartella dati del client</h1>
+    <p class="configuration-intro">Indica una cartella del sistema operativo su cui gira Fiddler Web App. L'analisi cerca i file nella cartella selezionata, senza modificarli.</p>
+    <div class="configuration-panel">
+        <form @onsubmit="Analyze" @onsubmit:preventDefault>
+            <label for="client-directory">Percorso assoluto sul server</label>
+            <div class="directory-input-row"><input id="client-directory" @bind="directory" @bind:event="oninput" @bind:after="Invalidate"
+                placeholder="D:\Dati\Client oppure /srv/seahats/client" disabled="@busy" spellcheck="false" autocomplete="off" />
+                <button class="search-submit" type="submit" disabled="@busy">@(busy ? "Analisi in corso…" : "Analizza cartella")</button></div>
+        </form>
+        <p class="muted">Cartella salvata: <strong class="saved-directory">@(string.IsNullOrEmpty(Settings.Directory) ? "Nessuna" : Settings.Directory)</strong></p>
+        @if (error is not null) { <div class="notice error" role="alert">@error</div> }
+        @if (saved) { <div class="notice success" role="status">Cartella salvata. <a href="/">Vai all'archivio</a> e premi Apri archivio per caricare i file.</div> }
+    </div>
+    @if (report is not null)
+    {
+        <div class="scan-summary" aria-live="polite">
+            <div><strong>@report.Files.Count(file => file.Status == ClientFileStatus.Present)</strong><span>Presenti</span></div>
+            <div><strong>@report.Files.Count(file => file.Status == ClientFileStatus.Missing)</strong><span>Assenti</span></div>
+            <div><strong>@report.Files.Count(file => file.Status == ClientFileStatus.Alternative)</strong><span>Coperti da alternative</span></div>
+            <div><strong>@report.Files.Count(file => IsProblem(file.Status))</strong><span>Da verificare</span></div>
+            <div><strong>@ClientFileCatalog.ExpectedFiles.Count</strong><span>File conosciuti</span></div>
+        </div>
+        <div class="scan-actions"><div><strong>@(report.CanView ? "Archivi disponibili per il visualizzatore" : "Nessun archivio completo per il visualizzatore")</strong>
+            <p class="muted">@(report.CanView ? "Sono presenti i file per almeno una collezione di grafica o animazioni." : "Servono coppie MUL/IDX complete e leggibili oppure gumpartLegacyMUL.uop per i Gump.")</p></div>
+            <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Save" Disabled="@(busy || saved)">Salva cartella</FluentButton></div>
+        <p class="inventory-explanation">Non tutti i file sono obbligatori: dipendono dalla versione del client, dalle mappe e dalle funzioni utilizzate. Le alternative MUL/UOP complete coprono la stessa risorsa; le coppie incomplete sono evidenziate.</p>
+        <p class="muted">Controllo di presenza, dimensione, leggibilità e allineamento degli indici. Non verifica integralmente il contenuto di ogni archivio.</p>
+        <div class="inventory-toolbar"><h2>Analisi dei file</h2><label><input type="checkbox" @bind="onlyIssues" /> Mostra solo assenze e problemi</label></div>
+        @foreach (var group in report.Groups)
+        {
+            var visibleFiles = group.Files.Where(file => !onlyIssues || file.Status is not (ClientFileStatus.Present or ClientFileStatus.Alternative)).ToArray();
+            if (visibleFiles.Length == 0) { continue; }
+            <details class="file-group" open="@(group.Status is ClientGroupStatus.Incomplete or ClientGroupStatus.Invalid)">
+                <summary><span><span class="group-category">@group.Definition.Category</span><strong>@group.Definition.Name</strong></span><span class="file-status @GroupClass(group.Status)">@GroupLabel(group.Status)</span></summary>
+                <div class="group-content">
+                    <p class="muted alternatives">@string.Join(" oppure ", group.Definition.Alternatives.Select(alternative => string.Join(" + ", alternative)))</p>
+                    @if (group.Definition.ViewerSupported && group.Status == ClientGroupStatus.Available)
+                    { <p class="viewer-note">@(group.CanView ? "Visualizzazione disponibile." : "Formato UOP riconosciuto. Questa collezione richiede ancora i MUL nel visualizzatore web.")</p> }
+                    <div class="file-table-container"><table class="file-table"><thead><tr><th>File</th><th>Stato</th><th>Dimensione</th><th>Dettaglio</th></tr></thead><tbody>
+                        @foreach (var file in visibleFiles)
+                        {
+                            <tr><td><code>@file.Name</code></td><td><span class="file-status @FileClass(file.Status)">@FileLabel(file.Status)</span></td>
+                                <td>@(file.Size is long length ? $"{length:N0} byte" : "—")</td><td>@file.Detail</td></tr>
+                        }
+                    </tbody></table></div>
+                </div>
+            </details>
+        }
+        @if (report.OtherFiles.Count > 0)
+        {
+            <details class="file-group"><summary><strong>Altri file nella cartella</strong><span>@report.OtherFiles.Count</span></summary>
+                <div class="group-content"><p class="muted">File non inclusi nel catalogo standard di UOFiddler. Possono essere risorse personalizzate.</p>
+                    <ul class="other-files">@foreach (var file in report.OtherFiles.Take(100)) { <li><code>@file</code></li> }</ul>
+                    @if (report.OtherFiles.Count > 100) { <p class="muted">Visualizzati i primi 100 nomi.</p> }</div></details>
+        }
+    }
+</section>
+
+@code {
+    private string directory = "";
+    private string? error;
+    private bool busy, saved, onlyIssues;
+    private ClientDirectoryReport? report;
+    private readonly CancellationTokenSource lifetime = new();
+    protected override void OnInitialized() => directory = Settings.Directory;
+    private void Invalidate() { report = null; saved = false; error = null; }
+
+    private async Task Analyze()
+    {
+        if (busy) return;
+        busy = true; saved = false; error = null; report = null;
+        string selectedDirectory = directory;
+        var token = lifetime.Token;
+        try
+        {
+            report = await Task.Run(() => Scanner.Scan(selectedDirectory, token), token);
+            directory = report.Directory;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private void Save()
+    {
+        if (report is null || busy) return;
+        if (Workspace.Gumps?.HasChanges == true) { error = "Salva o scarta le bozze Gump prima di cambiare cartella."; return; }
+        try
+        {
+            Settings.Save(report.Directory);
+            Workspace.Dispose();
+            Animations.Dispose();
+            saved = true; error = null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { error = "Impossibile salvare la cartella: " + ex.Message; }
+    }
+    private static bool IsProblem(ClientFileStatus status) => status is ClientFileStatus.Invalid or ClientFileStatus.Empty or ClientFileStatus.Unreadable or ClientFileStatus.Ambiguous;
+    private static string FileClass(ClientFileStatus status) => status == ClientFileStatus.Present ? "status-ok" : IsProblem(status) ? "status-error" : "status-muted";
+    private static string GroupClass(ClientGroupStatus status) => status switch { ClientGroupStatus.Available => "status-ok", ClientGroupStatus.Incomplete => "status-warning", ClientGroupStatus.Invalid => "status-error", _ => "status-muted" };
+    private static string GroupLabel(ClientGroupStatus status) => status switch { ClientGroupStatus.Available => "Disponibile", ClientGroupStatus.Incomplete => "Incompleto", ClientGroupStatus.Invalid => "Da verificare", _ => "Assente" };
+    private static string FileLabel(ClientFileStatus status) => status switch { ClientFileStatus.Present => "Presente", ClientFileStatus.Missing => "Assente", ClientFileStatus.Alternative => "Alternativa coperta", ClientFileStatus.Empty => "Vuoto", ClientFileStatus.Unreadable => "Non leggibile", ClientFileStatus.Ambiguous => "Nome ambiguo", _ => "Indice non valido" };
+    public void Dispose() { lifetime.Cancel(); lifetime.Dispose(); }
+}

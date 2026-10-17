@@ -1,5 +1,10 @@
 using System.Buffers.Binary;
 using Fiddler.Formats;
+using Fiddler.Formats.Art;
+using Fiddler.Formats.Gumps;
+using Fiddler.Formats.Containers.Mul;
+using Fiddler.Graphics.Art;
+using Fiddler.Graphics.Gumps;
 using Fiddler.Graphics;
 using FiddlerWebApp.Services;
 using SkiaSharp;
@@ -27,7 +32,7 @@ public sealed class MulTests
     [Fact]
     public void LandHasDiamondShapeAndOpaqueBlack()
     {
-        var decoded = MulImageDecoder.DecodeLand(Land());
+        var decoded = LandDecoder.Decode(Land());
         Assert.Equal((44, 44), (decoded.Width, decoded.Height));
         var pixels = decoded.Pixels.ToArray();
         Assert.Equal(1012, pixels.Count(p => p != 0));
@@ -35,13 +40,13 @@ public sealed class MulTests
         Assert.Equal(unchecked((int)0xFFFF0000), pixels[21]);
         Assert.Equal(0, pixels[43]);
         Assert.Equal(unchecked((int)0xFFFF0000), pixels[43 * 44 + 21]);
-        Assert.Equal(unchecked((int)0xFF000000), MulImageDecoder.DecodeLand(new byte[2024]).Pixels.Span[21]);
+        Assert.Equal(unchecked((int)0xFF000000), LandDecoder.Decode(new byte[2024]).Pixels.Span[21]);
     }
 
     [Fact]
     public void ArtUsesRelativeRowOffsetsAndTransparentSkippedPixels()
     {
-        var image = MulImageDecoder.DecodeStatic(Art());
+        var image = StaticArtDecoder.Decode(Art());
         Assert.Equal((3, 2), (image.Width, image.Height));
         Assert.Equal(new[] { 0, unchecked((int)0xFF00FF00), 0,
             unchecked((int)0xFF0000FF), unchecked((int)0xFFFF0000), unchecked((int)0xFF000000) }, image.Pixels.ToArray());
@@ -50,7 +55,7 @@ public sealed class MulTests
     [Fact]
     public void GumpUsesDwordRowOffsetsAndZeroIsTransparent()
     {
-        var image = MulImageDecoder.DecodeGump(Gump(), 3, 2);
+        var image = GumpDecoder.Decode(Gump(), 3, 2);
         Assert.Equal(new[] { unchecked((int)0xFFFF0000), 0, 0,
             unchecked((int)0xFF00FF00), unchecked((int)0xFF00FF00), unchecked((int)0xFF00FF00) }, image.Pixels.ToArray());
     }
@@ -58,28 +63,28 @@ public sealed class MulTests
     [Theory]
     [InlineData(0, 1)] [InlineData(1, 0)] [InlineData(4097, 1)] [InlineData(4096, 4096)]
     public void OversizedOrEmptyDimensionsAreRejected(int width, int height) =>
-        Assert.Throws<InvalidDataException>(() => MulImageDecoder.DecodeGump([], width, height));
+        Assert.Throws<InvalidDataException>(() => GumpDecoder.Decode([], width, height));
 
     [Fact]
     public void CorruptRunsOffsetsAndTruncatedRecordsAreRejected()
     {
-        Assert.Throws<InvalidDataException>(() => MulImageDecoder.DecodeLand(new byte[2023]));
+        Assert.Throws<InvalidDataException>(() => LandDecoder.Decode(new byte[2023]));
         byte[] art = Art();
         BinaryPrimitives.WriteUInt16LittleEndian(art.AsSpan(14), 3); // skip=1, run=3, width=3
-        Assert.Throws<InvalidDataException>(() => MulImageDecoder.DecodeStatic(art));
-        Assert.Throws<InvalidDataException>(() => MulImageDecoder.DecodeStatic(Art()[..^1]));
+        Assert.Throws<InvalidDataException>(() => StaticArtDecoder.Decode(art));
+        Assert.Throws<InvalidDataException>(() => StaticArtDecoder.Decode(Art()[..^1]));
         art = Art();
         BinaryPrimitives.WriteUInt16LittleEndian(art.AsSpan(8), ushort.MaxValue);
-        Assert.Throws<InvalidDataException>(() => MulImageDecoder.DecodeStatic(art));
+        Assert.Throws<InvalidDataException>(() => StaticArtDecoder.Decode(art));
         byte[] gump = Gump();
         BinaryPrimitives.WriteUInt32LittleEndian(gump, uint.MaxValue);
-        Assert.Throws<InvalidDataException>(() => MulImageDecoder.DecodeGump(gump, 3, 2));
+        Assert.Throws<InvalidDataException>(() => GumpDecoder.Decode(gump, 3, 2));
         gump = Gump();
         BinaryPrimitives.WriteUInt16LittleEndian(gump.AsSpan(10), 0);
-        Assert.Throws<InvalidDataException>(() => MulImageDecoder.DecodeGump(gump, 3, 2));
+        Assert.Throws<InvalidDataException>(() => GumpDecoder.Decode(gump, 3, 2));
         gump = Gump();
         BinaryPrimitives.WriteUInt16LittleEndian(gump.AsSpan(10), 4);
-        Assert.Throws<InvalidDataException>(() => MulImageDecoder.DecodeGump(gump, 3, 2));
+        Assert.Throws<InvalidDataException>(() => GumpDecoder.Decode(gump, 3, 2));
     }
 
     [Fact]
@@ -89,7 +94,7 @@ public sealed class MulTests
         for (int length = 0; length < art.Length; length++)
         {
             byte[] truncated = art[..length];
-            Assert.Throws<InvalidDataException>(() => MulImageDecoder.DecodeStatic(truncated));
+            Assert.Throws<InvalidDataException>(() => StaticArtDecoder.Decode(truncated));
         }
     }
 
@@ -97,25 +102,24 @@ public sealed class MulTests
     public void SkiaPngRoundTripPreservesColorsAlphaAndNearestNeighborScaling()
     {
         var renderer = new SkiaAssetRenderer();
-        using var png = SKBitmap.Decode(renderer.RenderPng(MulImageDecoder.DecodeStatic(Art()), 2));
+        using var png = SKBitmap.Decode(new ArtRenderer().RenderItemPng(Art(), 2));
         Assert.Equal((6, 4), (png.Width, png.Height));
         Assert.Equal((byte)0, png.GetPixel(0, 0).Alpha);
         Assert.Equal(SKColors.Lime, png.GetPixel(2, 0));
         Assert.Equal(SKColors.Lime, png.GetPixel(3, 1));
         Assert.Equal(SKColors.Blue, png.GetPixel(0, 2));
         Assert.Equal(SKColors.Black, png.GetPixel(5, 3));
-        using var thumb = SKBitmap.Decode(renderer.RenderThumbnail(MulImageDecoder.DecodeLand(Land()), 22, 22));
+        using var thumb = SKBitmap.Decode(renderer.RenderThumbnail(LandDecoder.Decode(Land()), 22, 22));
         Assert.Equal((22, 22), (thumb.Width, thumb.Height));
     }
 
     [Fact]
     public void RendererCanDrawToAnExistingCanvasWithoutWebDependencies()
     {
-        var renderer = new SkiaAssetRenderer();
         using var bitmap = new SKBitmap(3, 2);
         using var canvas = new SKCanvas(bitmap);
         canvas.Clear(SKColors.Magenta);
-        renderer.Draw(canvas, MulImageDecoder.DecodeStatic(Art()), new SKRect(0, 0, 3, 2));
+        new ArtRenderer().DrawItem(canvas, Art(), new SKRect(0, 0, 3, 2));
         Assert.Equal(SKColors.Magenta, bitmap.GetPixel(0, 0));
         Assert.Equal(SKColors.Lime, bitmap.GetPixel(1, 0));
     }
@@ -129,20 +133,20 @@ public sealed class MulTests
         Entry(index, 0x4000, 2024, Art().Length, 0);
         File.WriteAllBytes(fixture.PathFor("artidx.mul"), index);
         File.WriteAllBytes(fixture.PathFor("art.mul"), [..Land(), ..Art()]);
-        using (var archive = MulArchive.Open(fixture.PathFor("artidx.mul"), fixture.PathFor("art.mul")))
+        using (var archive = ArtMulReader.Open(fixture.PathFor("artidx.mul"), fixture.PathFor("art.mul")))
         {
-            Assert.Single(archive.GetEntries(AssetKind.Land));
-            Assert.Equal(0, Assert.Single(archive.GetEntries(AssetKind.Item)).Id);
-            Assert.Equal(44, archive.Read(AssetKind.Land, 0).Width);
-            Assert.Equal(3, archive.Read(AssetKind.Item, 0).Width);
-            Assert.Throws<KeyNotFoundException>(() => archive.Read(AssetKind.Item, -1));
-            Assert.Throws<KeyNotFoundException>(() => archive.Read(AssetKind.Item, int.MaxValue));
-            Assert.Throws<KeyNotFoundException>(() => archive.Read(AssetKind.Gump, 0));
+            Assert.Single(archive.LandEntries);
+            Assert.Equal(0, Assert.Single(archive.ItemEntries).Id);
+            Assert.Equal(44, archive.ReadLand(0).Width);
+            Assert.Equal(3, archive.ReadItem(0).Width);
+            Assert.Throws<KeyNotFoundException>(() => archive.ReadItem(-1));
+            Assert.Throws<KeyNotFoundException>(() => archive.ReadItem(int.MaxValue));
+            Assert.Throws<KeyNotFoundException>(() => archive.ReadLand(0x4000));
         }
         Entry(index, 0x4000, int.MaxValue, 20, 0);
         File.WriteAllBytes(fixture.PathFor("artidx.mul"), index);
-        using var invalid = MulArchive.Open(fixture.PathFor("artidx.mul"), fixture.PathFor("art.mul"));
-        Assert.Throws<InvalidDataException>(() => invalid.Read(AssetKind.Item, 0));
+        using var invalid = ArtMulReader.Open(fixture.PathFor("artidx.mul"), fixture.PathFor("art.mul"));
+        Assert.Throws<InvalidDataException>(() => invalid.ReadItem(0));
     }
 
     [Fact]
@@ -156,6 +160,13 @@ public sealed class MulTests
         byte[] original = File.ReadAllBytes(fixture.PathFor("gumpart.mul"));
         using var first = new MulWorkspace();
         using var second = new MulWorkspace();
+        using (var reader = GumpMulReader.Open(fixture.PathFor("gumpidx.mul"), fixture.PathFor("gumpart.mul")))
+        {
+            Assert.Equal(3, reader.Read(0).Width);
+            using var png = SKBitmap.Decode(new GumpRenderer().RenderPng(Gump(), 3, 2));
+            Assert.Equal(SKColors.Red, png.GetPixel(0, 0));
+            Assert.Equal((byte)0, png.GetPixel(1, 0).Alpha);
+        }
         first.Open(fixture.Root); second.Open(fixture.Root);
         first.Dispose();
         Assert.Equal(3, second.Read(Assert.Single(second.Entries(AssetKind.Gump))).Width);
@@ -171,7 +182,7 @@ public sealed class MulTests
     {
         using var fixture = new TempDirectory();
         File.WriteAllBytes(fixture.PathFor("bad.idx"), new byte[13]);
-        Assert.Throws<InvalidDataException>(() => MulArchive.Open(fixture.PathFor("bad.idx"), fixture.PathFor("missing.mul")));
+        Assert.Throws<InvalidDataException>(() => IndexedMulFile.Open(fixture.PathFor("bad.idx"), fixture.PathFor("missing.mul")));
     }
 
     private static void Entry(byte[] index, int slot, int offset, int length, int extra)

@@ -4,4 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Catalog/UOFiddlerFiles.txt" />
+  </ItemGroup>
 </Project>

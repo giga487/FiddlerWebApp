@@ -1,0 +1,115 @@
+@page "/animazioni"
+@using Fiddler.Formats.Animations
+@using Fiddler.Graphics.Animations
+@using FiddlerWebApp.Components.Animations
+@inject AnimationWorkspace Workspace
+@inject ClientDirectorySettings Settings
+@inject AnimationRenderer Renderer
+
+<PageTitle>Animazioni · Fiddler</PageTitle>
+<section class="animations-page">
+    <div class="section-label">LIBRERIA DEL CLIENT / ANIMAZIONI</div>
+    <div class="animation-heading"><div><h1>Animazioni</h1><p class="muted">Animali e creature, con azioni e otto direzioni.</p></div>
+        <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Open" Disabled="busy">@(busy ? "Apertura…" : "Apri animazioni")</FluentButton></div>
+    <p class="muted"><a href="/configurazione">Configura la cartella dati</a> · Coppie anim.idx + anim.mul e anim2…anim6.</p>
+    @if (error is not null) { <div class="notice error" role="alert">@error</div> }
+    @foreach (var warning in Workspace.Warnings) { <div class="notice warning">@warning</div> }
+    @if (Workspace.Readers.Count == 0)
+    {
+        <div class="empty-state"><h2>Apri le animazioni del client</h2><p>Seleziona un animale, un'azione e una direzione. L'anteprima mantiene il centro originale dei frame durante il movimento.</p></div>
+    }
+    else
+    {
+        <div class="animation-workspace">
+            <aside class="animation-selection">
+                <label for="anim-file">Archivio</label><select id="anim-file" @bind="fileType" @bind:after="ChangeFile" disabled="@busy">
+                    @foreach (var source in Workspace.Readers) { <option value="@source.FileType">@source.FileName (@source.Bodies.Count corpi)</option> }
+                </select>
+                <label for="anim-category">Categoria</label><select id="anim-category" @bind="category" @bind:after="FilterBodies" disabled="@busy"><option value="">Tutte</option><option value="Animal">Animali</option><option value="Monster">Mostri</option><option value="Human">Umani / equipaggiamento</option></select>
+                <label for="anim-search">Cerca ID nel file</label><input id="anim-search" @bind="query" @bind:after="FilterBodies" placeholder="Decimale o 0x…" disabled="@busy" />
+                <label for="anim-body">Corpo (@bodies.Count)</label><select id="anim-body" size="12" @bind="bodyId" @bind:after="ChangeBody" disabled="@(busy || bodies.Count == 0)">
+                    @foreach (var body in bodies) { <option value="@body.Id">@($"0x{body.Id:X4} · {body.Id} — {TypeLabel(body.Type)}")</option> }
+                </select>
+                <p class="muted">Gli ID si riferiscono all'archivio selezionato. Le categorie seguono il layout MUL.</p>
+            </aside>
+            <div class="animation-viewer">
+                @if (bodies.Count == 0) { <div class="empty-state"><h2>Nessun corpo trovato</h2><p>Cambia categoria, ID o archivio.</p></div> }
+                else
+                {
+                    <div class="sequence-controls"><label for="anim-action">Azione</label><select id="anim-action" @bind="actionId" @bind:after="ChangeAction">
+                        @foreach (var action in actions) { <option value="@action.Id">@action.Id · @action.Name</option> }
+                    </select><label for="anim-direction">Direzione</label><select id="anim-direction" @bind="direction" @bind:after="LoadClip">
+                        @for (int d = 0; d < 8; d++) { <option value="@d" disabled="@(!HasDirection(d))">@d @(d > 4 ? "(specchiata)" : "") @(!HasDirection(d) ? "— assente" : "")</option> }
+                    </select></div>
+                    @if (atlas is not null)
+                    {
+                        <AnimationPreview Atlas="atlas" />
+                        <p class="muted">@($"Corpo 0x{bodyId:X4}") · @atlas.FrameCount frame · area @atlas.FrameWidth × @atlas.FrameHeight px · direzione @direction @(direction > 4 ? "specchiata" : "")</p>
+                    }
+                }
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private int fileType, bodyId, actionId, direction = 1;
+    private string category = "", query = "";
+    private string? error;
+    private bool busy;
+    private IReadOnlyList<AnimationBody> bodies = [];
+    private IReadOnlyList<AnimationAction> actions = [];
+    private AnimationAtlas? atlas;
+    private AnimationMulReader? Source => Workspace.Readers.FirstOrDefault(reader => reader.FileType == fileType);
+    protected override void OnInitialized() { if (Workspace.Readers.Count > 0) { fileType = Workspace.Readers[0].FileType; FilterBodies(); } }
+    private async Task Open()
+    {
+        busy = true; error = null;
+        await Task.Yield();
+        try { Workspace.Open(Settings.Directory); fileType = Workspace.Readers.FirstOrDefault(reader => reader.Bodies.Count > 0)?.FileType ?? Workspace.Readers[0].FileType; ChangeFile(); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private void ChangeFile() { query = category = ""; FilterBodies(); }
+    private void FilterBodies()
+    {
+        error = null;
+        IEnumerable<AnimationBody> result = Source?.Bodies ?? [];
+        if (Enum.TryParse<AnimationBodyType>(category, out var selectedType)) result = result.Where(body => body.Type == selectedType);
+        string search = query.Trim();
+        if (search.Length > 0)
+        {
+            bool valid = search.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+                ? int.TryParse(search[2..], System.Globalization.NumberStyles.AllowHexSpecifier, null, out int id)
+                : int.TryParse(search, out id);
+            result = valid ? result.Where(body => body.Id == id) : [];
+        }
+        bodies = result.ToArray();
+        if (bodies.Count > 0) bodyId = bodies.Any(body => body.Id == bodyId) ? bodyId : bodies[0].Id;
+        ChangeBody();
+    }
+    private void ChangeBody()
+    {
+        atlas = null; actions = [];
+        if (bodies.Count == 0 || Source is null) return;
+        actions = Source.Actions(bodyId);
+        actionId = AnimationIndexLayout.BodyType(bodyId, fileType) == AnimationBodyType.Animal && actions.Any(action => action.Id == 2) ? 2 : actions.FirstOrDefault()?.Id ?? 0;
+        ChangeAction();
+    }
+    private bool HasDirection(int d) => Source?.HasSequence(bodyId, actionId, d) == true;
+    private void ChangeAction()
+    {
+        atlas = null;
+        if (actions.Count == 0) return;
+        if (!HasDirection(direction)) direction = Enumerable.Range(0, 8).First(HasDirection);
+        LoadClip();
+    }
+    private void LoadClip()
+    {
+        atlas = null; error = null;
+        if (Source is null || bodies.Count == 0) return;
+        try { atlas = Renderer.RenderAtlas(Source.Read(bodyId, actionId, direction)); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or KeyNotFoundException or ArgumentException) { error = ex.Message; }
+    }
+    private static string TypeLabel(AnimationBodyType type) => type switch { AnimationBodyType.Animal => "Animale", AnimationBodyType.Monster => "Mostro", _ => "Umano" };
+}

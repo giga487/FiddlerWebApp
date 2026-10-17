@@ -1,6 +1,8 @@
 using FiddlerWebApp.Components;
 using FiddlerWebApp.Services;
 using Fiddler.Graphics;
+using Fiddler.Graphics.Animations;
+using Fiddler.Formats.Catalog;
 using Microsoft.FluentUI.AspNetCore.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,7 +12,13 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddFluentUIComponents();
 builder.Services.AddScoped<MulWorkspace>();
+builder.Services.AddScoped<AnimationWorkspace>();
 builder.Services.AddSingleton<SkiaAssetRenderer>();
+builder.Services.AddSingleton<AnimationRenderer>();
+builder.Services.AddSingleton<ClientDirectoryScanner>();
+builder.Services.AddSingleton(new ClientDirectorySettings(
+    Path.Combine(builder.Environment.ContentRootPath, "App_Data", "client-directory.json"),
+    builder.Configuration["Mul:Directory"] ?? ""));
 
 var app = builder.Build();
 

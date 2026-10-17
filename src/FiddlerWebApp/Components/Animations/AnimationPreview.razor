@@ -1,0 +1,54 @@
+@using Fiddler.Graphics.Animations
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="animation-player" @ref="root" data-state="loading">
+    <div class="animation-stage checker"><canvas aria-label="Anteprima animata SkiaSharp"></canvas></div>
+    <div class="animation-controls">
+        <button type="button" data-action="play">Pausa</button>
+        <button type="button" data-action="reset">Inizio</button>
+        <button type="button" data-action="previous" aria-label="Frame precedente">◀</button>
+        <button type="button" data-action="next" aria-label="Frame successivo">▶</button>
+        <label><input type="checkbox" data-action="loop" checked /> Loop</label>
+        <label>Ritardo <input type="number" data-action="delay" value="150" min="25" max="2000" step="25" /> ms</label>
+        <label>Zoom <select data-action="zoom"><option value="1">100%</option><option value="2" selected>200%</option><option value="4">400%</option></select></label>
+    </div>
+    <div class="animation-scrub"><input type="range" data-action="seek" min="0" max="@(Atlas.FrameCount - 1)" value="0" aria-label="Seleziona frame" />
+        <output data-frame-label aria-live="off">Frame 1 / @Atlas.FrameCount</output></div>
+</div>
+@if (error is not null) { <p class="notice error" role="alert">@error</p> }
+
+@code {
+    [Parameter, EditorRequired] public AnimationAtlas Atlas { get; set; } = default!;
+    private ElementReference root;
+    private IJSObjectReference? module;
+    private AnimationAtlas? rendered;
+    private string? error;
+    private bool disposed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed || ReferenceEquals(rendered, Atlas)) return;
+        try
+        {
+            module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./animation-player.js");
+            if (disposed) return;
+            rendered = Atlas;
+            await module.InvokeVoidAsync("attach", root, new
+            {
+                source = "data:image/png;base64," + Convert.ToBase64String(Atlas.Png),
+                Atlas.FrameWidth, Atlas.FrameHeight, Atlas.Columns, Atlas.FrameCount
+            });
+        }
+        catch (JSException) when (!disposed) { error = "Impossibile avviare l'anteprima animata nel browser."; StateHasChanged(); }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        disposed = true;
+        if (module is null) return;
+        try { await module.InvokeVoidAsync("dispose", root); await module.DisposeAsync(); }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+}

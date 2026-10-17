@@ -1,7 +1,8 @@
 @page "/"
+@page "/gump"
 @inject MulWorkspace Workspace
 @inject SkiaAssetRenderer Renderer
-@inject IConfiguration Configuration
+@inject ClientDirectorySettings Settings
 
 <PageTitle>Archivio MUL · Fiddler</PageTitle>
 <div class="studio">
@@ -10,6 +11,9 @@
         <p class="muted">Esplora la grafica del client.</p>
         <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Open" Disabled="busy">Apri archivio</FluentButton>
         <div class="source-name">@Workspace.DisplayName</div>
+        <a class="configure-link" href="/configurazione">Configura cartella e verifica file</a>
+        <a class="configure-link" href="/gump/gestione">Importa e confronta Gump</a>
+        @if (Workspace.Gumps?.HasChanges == true) { <p class="muted">@Workspace.Gumps.DirtyCount Gump in bozza</p> }
         <div class="section-label collection-label">COLLEZIONI</div>
         <nav class="collections" aria-label="Collezioni MUL">
             @foreach (var collection in Enum.GetValues<AssetKind>())
@@ -23,7 +27,7 @@
         <div class="sidebar-note"><span class="status-dot"></span> Rendering SkiaSharp<br /><span class="muted">File originali aperti in sola lettura.</span></div>
     </aside>
     <section class="browser" aria-label="Catalogo asset">
-        <div class="browser-heading"><div><div class="section-label">LIBRERIA DEL CLIENT</div><h2>@Label(kind)</h2></div><span class="format-badge">MUL / IDX</span></div>
+        <div class="browser-heading"><div><div class="section-label">LIBRERIA DEL CLIENT</div><h2>@Label(kind)</h2></div><span class="format-badge">@(kind == AssetKind.Gump ? Workspace.Gumps?.Format ?? "MUL / UOP" : "MUL / IDX")</span></div>
         @if (error is not null) { <div class="notice error" role="alert">@error</div> }
         @if (!Workspace.IsOpen)
         {
@@ -80,15 +84,16 @@
             </div>
             <dl class="metadata"><dt>ID esadecimale</dt><dd>@($"0x{selected.Id:X4}")</dd><dt>ID decimale</dt><dd>@selected.Id</dd>
                 <dt>Dimensioni</dt><dd>@(preview is null ? "—" : $"{selectedWidth} × {selectedHeight} px")</dd>
-                <dt>Offset MUL</dt><dd>@selected.Offset.ToString("N0")</dd><dt>Record</dt><dd>@selected.Length.ToString("N0") byte</dd></dl>
+                <dt>Offset archivio</dt><dd>@(kind == AssetKind.Gump && Workspace.Gumps?.IsModified(selected.Id) == true ? "Bozza" : selected.Offset < 0 ? "—" : selected.Offset.ToString("N0"))</dd><dt>Record</dt><dd>@selected.Length.ToString("N0") byte</dd></dl>
             <p class="muted inspector-footnote">Trasparenza originale · ingrandimento senza interpolazione.</p>
+            @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/gestione?id={selected.Id}")">Importa o confronta questo ID</a> }
         }
     </aside>
 </div>
 
 @code {
     private const int PageSize = 24;
-    private AssetKind kind = AssetKind.Item;
+    private AssetKind kind = AssetKind.Gump;
     private IReadOnlyList<MulEntry> filtered = [];
     private readonly List<Tile> tiles = [];
     private MulEntry? selected;
@@ -100,19 +105,24 @@
     private sealed record Tile(MulEntry Entry, string? Image, int Width, int Height, string? Error);
     private static string Label(AssetKind value) => value switch { AssetKind.Land => "Terreni", AssetKind.Item => "Oggetti", _ => "Gump" };
 
+    protected override void OnInitialized()
+    {
+        if (Workspace.IsOpen) Refresh();
+    }
+
     private async Task Open()
     {
         busy = true; error = null;
         await Task.Yield();
         try
         {
-            Workspace.Open(Configuration["Mul:Directory"] ?? "");
+            Workspace.Open(Settings.Directory);
             if (Workspace.Entries(kind).Count == 0)
                 kind = Enum.GetValues<AssetKind>().FirstOrDefault(k => Workspace.Entries(k).Count > 0);
             query = appliedQuery = "";
             Refresh();
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException) { error = ex.Message; }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or InvalidOperationException) { error = ex.Message; }
         finally { busy = false; }
     }
     private void ChangeKind(AssetKind value) { kind = value; query = appliedQuery = ""; Refresh(); }

@@ -10,4 +10,5 @@ appsettings.Local.json
 *.uop
 *.png
 *.zip
+**/App_Data/
 
