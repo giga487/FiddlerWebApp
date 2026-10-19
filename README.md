@@ -1,6 +1,6 @@
 # Fiddler Web App
 
-SeaHats asset manager: Blazor Web App (.NET 10), Fluent UI Blazor 5 and SkiaSharp rendering.
+Ultima Online asset manager: Blazor Web App (.NET 10), Fluent UI Blazor 5 and SkiaSharp rendering.
 One application to run, with reusable readers and graphics in separate projects.
 All project text uses English, including UI labels, messages, accessibility text,
 catalog categories and documentation. The web host uses the en-US culture.
@@ -65,7 +65,9 @@ index check, rather than complete archive integrity validation.
 | `staidxN.mul` + `staticsN.mul` | Optional map statics |
 | `artLegacyMUL.uop` | Art images for Multi/map scenes |
 
-Animation UOP, verdata, diff patches and hue application are not implemented.
+Animation UOP, verdata and diff patches are not implemented. Hue editing and
+application to a configurable Item/Gump sample board are available in Color studio;
+the other catalogs and world/animation previews still show original colors.
 Empty slots are hidden; corrupt asset records are reported individually.
 Opening a MUL reads its index, then only the requested records (24 thumbnails
 per catalog page). Limits: 12 MB index, 16 MiB record, 4096 px per image side and
@@ -122,6 +124,29 @@ MUL/IDX pair in a unique new subfolder and preserves original files.
 PNG uploads come from the browser's PC; comparison and output paths are on the
 server. Comparison uses decoded pixels and reports Equal, Different, Current
 only, Reference only and Unreadable. See [Gump management](docs/gump-management.md).
+
+## Create colors on a sample board
+
+Open **Color studio** (`/colors`) and **Open configured library**. Choose an
+existing hue or **Create a new hue**. Add Items and Gumps through **Browse assets
+visually**, by decimal/hex ID, or through the link in the original catalog's
+inspector. The board accepts up to 24 samples, including the same object in
+different modes. Every card compares its original image with the current palette.
+
+Edit any of the 32 RGB555 samples or generate a palette from shadow, midtone and
+highlight colors. All cards update together. Choose **Full color** or **Gray
+pixels only** per card, and use light/dark/checkerboard backgrounds and zoom.
+Undo, restore and duplicate support experimentation. No tiledata flags are inferred.
+Game hue IDs are one-based; hue 0 means the original image. New hues append after
+the source entries without changing existing IDs.
+
+**Export new hues.mul** writes a complete library to a new unique subfolder under
+the absolute server path you enter. It preserves source headers and unedited
+records, pads new blocks to eight entries, and never overwrites the loaded file.
+Drafts remain after export. A folder without hues.mul starts an empty library;
+its export contains only newly created hues. Board snapshots and palette drafts
+survive internal navigation in the same session, but not reloads or server restarts.
+See [Color studio](docs/color-studio.md) for format details and limits.
 
 ## Compose Gumps on a grid
 

@@ -15,6 +15,7 @@ src/
     Multis/            # legacy/High Seas MUL and MultiCollection UOP components
     Maps/              # terrain blocks, static records and bounded region reads
     Imaging/           # ARGB32 pixels, limits and shared color/read primitives
+    Hues/              # RGB555 palettes, hue drafts, lookup and complete MUL export
     Catalog/           # inventory of files recognized by Fiddler
     Assets.cs          # shared catalog asset metadata
   Fiddler.Graphics/
@@ -50,6 +51,7 @@ have a decoded image.
 | Multis | 12/16-byte MUL and UOP | Components, coordinates, flags and isometric preview |
 | Maps | MUL/UOP; MUL statics | Terrain/static regions and isometric preview |
 | Sounds | File inventory | Audio is not decoded or played yet |
+| Hues | MUL and drafts | 32-sample palette editing, Item/Gump sample board and complete new export |
 | Containers/Uop | v4/v5 | Index, hashing and compression shared by supported readers |
 
 Add new resources under Formats and, for visual resources, under Graphics.

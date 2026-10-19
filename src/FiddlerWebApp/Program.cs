@@ -12,6 +12,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddFluentUIComponents();
 builder.Services.AddScoped<MulWorkspace>();
+builder.Services.AddScoped<ColorStudioWorkspace>();
 builder.Services.AddScoped<AnimationWorkspace>();
 builder.Services.AddScoped<WorldAssetWorkspace>();
 builder.Services.AddSingleton<Fiddler.Graphics.World.IsometricSceneRenderer>();
