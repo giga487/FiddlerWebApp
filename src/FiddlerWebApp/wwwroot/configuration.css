@@ -42,8 +42,23 @@
 .status-error { background: #fff0ea; color: #8b3824; }
 .success { background: #e4f3ec; color: #18654b; border: 1px solid #a9d4c0; }
 .other-files { columns: 3; font-size: 12px; line-height: 1.9; overflow-wrap: anywhere; }
+.missing-file-explanations { margin: 28px 0; padding: 20px; background: white; border: 1px solid #d6e0e4; border-radius: 8px; }
+.missing-file-explanations > p { line-height: 1.7; color: #526c77; }
+.missing-file-table caption { text-align: left; padding: 0 8px 14px; }
+.missing-file-table td { vertical-align: top; }
+.missing-file-table td:nth-child(3) { white-space: normal; min-width: 240px; }
+.missing-file-table .file-status { white-space: normal; }
+.missing-file-table p, .file-table td p { margin: 0 0 7px; line-height: 1.6; }
+.missing-file-table .file-impact { font-weight: 600; }
+.file-explanation-status { margin-top: 8px; font-size: 11px; color: #617b84; }
 @media (max-width: 800px) { .project-label { display: none; } .scan-summary { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 550px) {
+    .missing-file-explanations { padding: 16px; }
+    .missing-file-table, .missing-file-table caption, .missing-file-table tbody, .missing-file-table tr, .missing-file-table td { display: block; width: 100%; box-sizing: border-box; }
+    .missing-file-table thead { display: none; }
+    .missing-file-table tr { padding: 14px 0; border-bottom: 1px solid #d6e0e4; }
+    .missing-file-table td, .missing-file-table td:nth-child(3) { min-width: 0; padding: 5px 0; border: 0; white-space: normal; }
+    .missing-file-table code { overflow-wrap: anywhere; }
     .app-header { flex-wrap: wrap; } .header-nav { order: 3; width: 100%; padding: 8px 0; }
     .configuration { padding: 26px 16px; } .configuration h1 { font-size: 24px; }
     .directory-input-row, .scan-actions, .inventory-toolbar { flex-direction: column; align-items: stretch; }

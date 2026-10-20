@@ -4,7 +4,7 @@ public enum ClientFileStatus { Present, Missing, Alternative, Empty, Unreadable,
 public enum ClientGroupStatus { Available, Missing, Incomplete, Invalid }
 
 public sealed record ClientFileResult(string Name, ClientFileStatus Status, long? Size,
-    DateTime? ModifiedUtc, string? Detail = null)
+    DateTime? ModifiedUtc, string? Detail = null, ClientFileGuidance? Guidance = null)
 {
     public bool Usable => Status == ClientFileStatus.Present;
 }
@@ -56,7 +56,13 @@ public sealed class ClientDirectoryScanner
                 results = results.Select(file => file.Status == ClientFileStatus.Missing
                     ? file with { Status = ClientFileStatus.Alternative, Detail = "Covered by an available alternative format." }
                     : file).ToArray();
-            groups.Add(new ClientGroupResult(definition, status, Array.AsReadOnly(results), active));
+            var group = new ClientGroupResult(definition, status, Array.AsReadOnly(results), active);
+            groups.Add(group with { Files = Array.AsReadOnly(results.Select(file =>
+            {
+                var guidance = ClientFileGuidance.Describe(group, file);
+                return file with { Guidance = guidance, Detail = file.Status == ClientFileStatus.Alternative && guidance.Importance == ClientFileImportance.RequiredForFeature
+                    ? "An alternative archive was found, but it does not provide this viewer feature." : file.Detail };
+            }).ToArray()) });
         }
         var expected = ClientFileCatalog.ExpectedFiles.ToHashSet(StringComparer.OrdinalIgnoreCase);
         return new ClientDirectoryReport(fullPath, DateTime.UtcNow, groups.AsReadOnly(),

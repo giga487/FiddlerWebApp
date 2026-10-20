@@ -68,6 +68,10 @@ allowed. Unknown files are listed separately. File name matching ignores case.
 Requirements depend on client version and features: missing optional files do
 not necessarily indicate a broken client. The scan is an inventory and basic
 index check, rather than complete archive integrity validation.
+Configuration lists missing and unusable files with their purpose and the
+affected feature. It distinguishes required feature archives, optional statics,
+resources unused by the current viewer and files covered by an available format.
+The same per-file guidance is included in the HTTP file scan response.
 
 | Files | Collection |
 | --- | --- |

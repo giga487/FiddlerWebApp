@@ -27,6 +27,72 @@ public sealed class ClientDirectoryTests
         Assert.False(report.CanView);
         Assert.All(report.Groups, group => Assert.Equal(ClientGroupStatus.Missing, group.Status));
         Assert.All(report.Files, file => Assert.Equal(ClientFileStatus.Missing, file.Status));
+        Assert.All(report.Files, file =>
+        {
+            Assert.NotNull(file.Guidance);
+            Assert.False(string.IsNullOrWhiteSpace(file.Guidance.Purpose));
+            Assert.False(string.IsNullOrWhiteSpace(file.Guidance.Impact));
+        });
+    }
+
+    [Fact]
+    public void MissingGumpIndexExplainsTheFeatureAndCompleteArchiveAlternatives()
+    {
+        using var folder = new Folder(); folder.Write("gumpart.mul", [1]);
+        var report = new ClientDirectoryScanner().Scan(folder.Root);
+        var missing = report.Files.Single(file => file.Name == "gumpidx.mul");
+        Assert.Equal(ClientFileImportance.RequiredForFeature, missing.Guidance!.Importance);
+        Assert.Contains("locations and dimensions", missing.Guidance.Purpose);
+        Assert.Contains("gumpidx.mul + gumpart.mul or gumpartlegacymul.uop", missing.Guidance.Impact);
+        Assert.Contains("Gump cannot be viewed", missing.Guidance.Impact);
+    }
+
+    [Fact]
+    public void MissingAlternativeDoesNotClaimAFeatureIsBlockedWhenMulWorks()
+    {
+        using var folder = new Folder();
+        folder.Write("gumpidx.mul", new byte[12]); folder.Write("gumpart.mul", [1]);
+        var report = new ClientDirectoryScanner().Scan(folder.Root);
+        var uop = report.Files.Single(file => file.Name == "gumpartlegacymul.uop");
+        Assert.Equal(ClientFileImportance.CoveredByAlternative, uop.Guidance!.Importance);
+        Assert.Contains("gumpidx.mul + gumpart.mul", uop.Guidance.Impact);
+        Assert.Contains("No additional file is needed", uop.Guidance.Impact);
+    }
+
+    [Fact]
+    public void AnimationUopDoesNotHideTheMissingMulPlaybackRequirement()
+    {
+        using var folder = new Folder(); folder.Write("animationframe1.uop", [1]);
+        var report = new ClientDirectoryScanner().Scan(folder.Root);
+        var index = report.Files.Single(file => file.Name == "anim.idx");
+        Assert.Equal(ClientFileStatus.Alternative, index.Status);
+        Assert.Equal(ClientFileImportance.RequiredForFeature, index.Guidance!.Importance);
+        Assert.Contains("UOP does not replace MUL playback", index.Guidance.Impact);
+        Assert.Equal(ClientFileImportance.NotUsedByViewer, report.Files.Single(file => file.Name == "animationframe1.uop").Guidance!.Importance);
+    }
+
+    [Fact]
+    public void OptionalStaticsAndUnusedDataExplainTheirDifferentConsequences()
+    {
+        using var folder = new Folder(); var report = new ClientDirectoryScanner().Scan(folder.Root);
+        var statics = report.Files.Single(file => file.Name == "statics0.mul").Guidance!;
+        Assert.Equal(ClientFileImportance.Optional, statics.Importance);
+        Assert.Contains("Terrain can still be viewed", statics.Impact);
+        Assert.Contains("omit static objects", statics.Impact);
+        Assert.Equal(ClientFileImportance.NotUsedByViewer, report.Files.Single(file => file.Name == "client.exe").Guidance!.Importance);
+        Assert.Contains("does not apply these patches", report.Files.Single(file => file.Name == "mapdif0.mul").Guidance!.Impact);
+        Assert.Contains("does not block", report.Files.Single(file => file.Name == "hues.mul").Guidance!.Impact);
+    }
+
+    [Fact]
+    public void ArtUopExplainsTheDifferenceBetweenCatalogAndSceneRequirements()
+    {
+        using var folder = new Folder(); folder.Write("artlegacymul.uop", [1]);
+        var report = new ClientDirectoryScanner().Scan(folder.Root);
+        var index = report.Files.Single(file => file.Name == "artidx.mul");
+        Assert.Equal(ClientFileImportance.RequiredForFeature, index.Guidance!.Importance);
+        Assert.Contains("Art catalog requires art.mul + artidx.mul", index.Guidance.Impact);
+        Assert.Contains("scene images require either", index.Guidance.Impact);
     }
 
     [Fact]

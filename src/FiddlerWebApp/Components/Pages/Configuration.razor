@@ -35,8 +35,30 @@
         <div class="scan-actions"><div><strong>@(report.CanView ? "Archives available for the viewer" : "No complete archive available for the viewer")</strong>
             <p class="muted">@(report.CanView ? "Archives are available for graphics, animations, Multis or maps. Multi and map previews also require Art images." : "Complete, readable archives are required for a supported collection.")</p></div>
             <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Save" Disabled="@(busy || saved)">Save folder</FluentButton></div>
-        <p class="inventory-explanation">Required files depend on the client version, maps and features in use. Complete MUL/UOP alternatives cover the same resource; incomplete pairs are highlighted.</p>
+        <p class="inventory-explanation">Required files depend on the client version, maps and features in use. Alternative formats may provide the same resource; current viewer support is explained below.</p>
         <p class="muted">Checks file presence, size, readability and index alignment. Does not fully validate archive contents.</p>
+        var missingFiles = report.Files.Where(file => file.Status is ClientFileStatus.Missing or ClientFileStatus.Alternative || IsProblem(file.Status))
+            .OrderBy(file => file.Guidance!.Importance).ThenBy(file => file.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+        <section class="missing-file-explanations" aria-labelledby="missing-files-heading">
+            <h2 id="missing-files-heading">Missing files: what they affect</h2>
+            <p>Required means required for a specific viewer feature, not for the entire application. Maps and numbered animation archives are independent. This scan does not certify that a game installation is complete.</p>
+            @if (missingFiles.Length == 0)
+            { <p class="viewer-note">All catalog files are present and passed the basic checks.</p> }
+            else
+            {
+                <div class="file-table-container"><table class="file-table missing-file-table">
+                    <caption class="muted">Missing, unusable and alternative-covered files, with their purpose and impact.</caption>
+                    <thead><tr><th scope="col">File</th><th scope="col">Importance</th><th scope="col">Purpose and impact</th></tr></thead>
+                    <tbody>@foreach (var file in missingFiles)
+                    {
+                        var help = file.Guidance!;
+                        <tr><td><code>@file.Name</code><div class="file-explanation-status">@(file.Status == ClientFileStatus.Alternative && help.Importance == ClientFileImportance.RequiredForFeature ? "Alternative has limited support" : FileLabel(file.Status))</div></td>
+                            <td><span class="file-status @(help.Importance == ClientFileImportance.RequiredForFeature ? "status-warning" : help.Importance == ClientFileImportance.CoveredByAlternative ? "status-ok" : "status-muted")">@ImportanceLabel(help.Importance)</span><div class="file-explanation-status">@help.Feature</div></td>
+                            <td><p>@help.Purpose</p><p class="file-impact">@help.Impact</p>@if (file.Detail is not null) { <p class="muted">@file.Detail</p> }</td></tr>
+                    }</tbody>
+                </table></div>
+            }
+        </section>
         <div class="inventory-toolbar"><h2>File scan</h2><label><input type="checkbox" @bind="onlyIssues" /> Show only missing files and issues</label></div>
         @foreach (var group in report.Groups)
         {
@@ -52,7 +74,7 @@
                         @foreach (var file in visibleFiles)
                         {
                             <tr><td><code>@file.Name</code></td><td><span class="file-status @FileClass(file.Status)">@FileLabel(file.Status)</span></td>
-                                <td>@(file.Size is long length ? $"{length:N0} byte" : "—")</td><td>@file.Detail</td></tr>
+                                <td>@(file.Size is long length ? $"{length:N0} byte" : "—")</td><td><p>@file.Guidance?.Purpose</p><p>@file.Guidance?.Impact</p>@file.Detail</td></tr>
                         }
                     </tbody></table></div>
                 </div>
@@ -106,6 +128,8 @@
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { error = "Cannot save folder: " + ex.Message; }
     }
     private static bool IsProblem(ClientFileStatus status) => status is ClientFileStatus.Invalid or ClientFileStatus.Empty or ClientFileStatus.Unreadable or ClientFileStatus.Ambiguous;
+    private static string ImportanceLabel(ClientFileImportance importance) => importance switch
+    { ClientFileImportance.RequiredForFeature => "Required for this feature", ClientFileImportance.Optional => "Optional enhancement", ClientFileImportance.CoveredByAlternative => "Covered by alternative", _ => "Not used by this viewer" };
     private static string FileClass(ClientFileStatus status) => status == ClientFileStatus.Present ? "status-ok" : IsProblem(status) ? "status-error" : "status-muted";
     private static string GroupClass(ClientGroupStatus status) => status switch { ClientGroupStatus.Available => "status-ok", ClientGroupStatus.Incomplete => "status-warning", ClientGroupStatus.Invalid => "status-error", _ => "status-muted" };
     private static string GroupLabel(ClientGroupStatus status) => status switch { ClientGroupStatus.Available => "Available", ClientGroupStatus.Incomplete => "Incomplete", ClientGroupStatus.Invalid => "Needs review", _ => "Missing" };

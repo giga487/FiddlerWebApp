@@ -29,7 +29,7 @@ public static class ApiDescription
                 if (path.Contains("{workspaceId", StringComparison.Ordinal) && !path.EndsWith("/heartbeat", StringComparison.Ordinal) && !path.EndsWith("/gumps/compare", StringComparison.Ordinal))
                     operation.Parameters.Add(Header("If-Match", "Exact workspace ETag, including quotes. Read the new ETag after every successful mutation."));
             }
-            if (operation.RequestBody?.Content.TryGetValue("image/png", out var upload) == true)
+            if (operation.RequestBody?.Content?.TryGetValue("image/png", out var upload) == true && upload is not null)
                 upload.Schema = new OpenApiSchema { Type = JsonSchemaType.String, Format = "binary" };
             operation.Responses ??= new();
             operation.Responses.TryAdd("401", new OpenApiResponse { Description = "Sign-in required or login expired/revoked. JSON Problem Details; no redirect." });

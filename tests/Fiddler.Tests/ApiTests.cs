@@ -314,7 +314,7 @@ public sealed class ApiTests
         {
             builder.UseEnvironment("Development");
             if (openAccess) builder.UseSetting("Authentication:Mode", "Open");
-            builder.UseContentRoot(Path.GetFullPath("../../../../../src/FiddlerWebApp", AppContext.BaseDirectory));
+            builder.UseContentRoot(WebRoot());
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<TimeProvider>(); services.AddSingleton<TimeProvider>(Clock);
@@ -339,6 +339,8 @@ public sealed class ApiTests
         }
         public override async ValueTask DisposeAsync()
         { await base.DisposeAsync(); if (Directory.Exists(root)) Directory.Delete(root, true); }
+        private static string WebRoot([System.Runtime.CompilerServices.CallerFilePath] string sourceFile = "") =>
+            Path.GetFullPath("../../src/FiddlerWebApp", Path.GetDirectoryName(sourceFile)!);
     }
     // This handler exists only in the test assembly; production accepts no identity headers.
     private sealed class TestAuthentication(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
