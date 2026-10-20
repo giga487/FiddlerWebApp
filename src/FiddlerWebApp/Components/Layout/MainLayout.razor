@@ -12,6 +12,10 @@
     @if (Session.IsSignedIn)
     {
         <nav class="header-nav" aria-label="Main navigation"><NavLink href="/gump">Gump / Art</NavLink><NavLink href="/multi">Multi</NavLink><NavLink href="/maps">Maps</NavLink><NavLink href="/animations">Animations</NavLink><NavLink href="/configuration">Configuration</NavLink><NavLink href="/users">Users</NavLink></nav>
+        <NavLink class="read-only" href="/fonts">Fonts</NavLink>
+        <NavLink class="read-only" href="/cliloc">Cliloc</NavLink>
+        <NavLink class="read-only" href="/tiledata">TileData</NavLink>
+        <NavLink class="read-only" href="/plugins">Plugins</NavLink>
         <a class="user-badge" href="/users"><strong>@Session.User!.Name</strong><small>@Session.User.Provider</small></a>
         @if (!Features.OpenAccess)
         { <form method="post" action="/account/sign-out" data-enhance="false"><AntiforgeryToken /><button class="user-sign-out" type="submit">Sign out</button></form> }

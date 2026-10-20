@@ -19,7 +19,8 @@ public sealed class MulWorkspace : IDisposable
     public MulWorkspace() { }
     public MulWorkspace(UserSession user, SharedGumpStore shared, ResourceLeaseManager leases)
     { this.user = user; this.shared = shared; this.leases = leases; }
-    private ArtMulReader? art;
+    private ArtDocument? art;
+    public ArtDocument? Art => art;
     private GumpDocument? gumps;
     public GumpDocument? Gumps => gumps;
     public string CurrentDirectory { get; private set; } = "";
@@ -29,21 +30,21 @@ public sealed class MulWorkspace : IDisposable
     public void Open(string directory, bool discardChanges = false)
     {
         user?.RequireUser();
-        if (gumps?.HasChanges == true && !discardChanges)
-            throw new InvalidOperationException("There are Gump drafts: save a version or discard changes before opening another archive.");
+        if ((gumps?.HasChanges == true || art?.HasChanges == true) && !discardChanges)
+            throw new InvalidOperationException("There are graphics drafts: export or discard changes before opening another archive.");
         if (string.IsNullOrWhiteSpace(directory))
             throw new InvalidDataException("Configure the MUL data folder before opening the archive.");
         var folder = new DirectoryInfo(Path.GetFullPath(directory));
         if (!folder.Exists) throw new DirectoryNotFoundException("The MUL data folder does not exist.");
         var files = folder.EnumerateFiles().ToDictionary(file => file.Name, file => file.FullName,
             StringComparer.OrdinalIgnoreCase);
-        ArtMulReader? nextArt = null;
+        ArtDocument? nextArt = null;
         GumpDocument? nextGumps = null;
         SharedGumpSnapshot? nextSnapshot = null;
         try
         {
             if (files.TryGetValue("artidx.mul", out var artIndex) && files.TryGetValue("art.mul", out var artData))
-                nextArt = ArtMulReader.Open(artIndex, artData);
+                nextArt = ArtDocument.Open(artIndex, artData);
             if (files.ContainsKey("gumpidx.mul") && files.ContainsKey("gumpart.mul") || files.ContainsKey("gumpartlegacymul.uop"))
             {
                 nextSnapshot = shared?.Open(folder.FullName);
@@ -66,16 +67,16 @@ public sealed class MulWorkspace : IDisposable
 
     public IReadOnlyList<MulEntry> Entries(AssetKind kind) => kind switch
     {
-        AssetKind.Land => art?.LandEntries ?? [],
-        AssetKind.Item => art?.ItemEntries ?? [],
+        AssetKind.Land => art?.Entries(AssetKind.Land) ?? [],
+        AssetKind.Item => art?.Entries(AssetKind.Item) ?? [],
         AssetKind.Gump => gumps?.Entries ?? [],
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
     public DecodedImage Read(MulEntry entry) => (entry.Kind switch
     {
-        AssetKind.Land => art?.ReadLand(entry.Id),
-        AssetKind.Item => art?.ReadItem(entry.Id),
+        AssetKind.Land => art?.Read(AssetKind.Land, entry.Id),
+        AssetKind.Item => art?.Read(AssetKind.Item, entry.Id),
         AssetKind.Gump => gumps?.Read(entry.Id),
         _ => throw new ArgumentOutOfRangeException(nameof(entry))
     }) ?? throw new InvalidOperationException("Archive is not open.");

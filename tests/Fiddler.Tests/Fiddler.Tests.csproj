@@ -13,5 +13,6 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" PrivateAssets="all" />
     <ProjectReference Include="../../src/Fiddler.Graphics/Fiddler.Graphics.csproj" />
     <ProjectReference Include="../../src/FiddlerWebApp/FiddlerWebApp.csproj" />
+    <ProjectReference Include="../../examples/Fiddler.Plugin.AssetInfo/Fiddler.Plugin.AssetInfo.csproj" />
   </ItemGroup>
 </Project>

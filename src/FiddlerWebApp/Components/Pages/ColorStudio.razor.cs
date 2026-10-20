@@ -16,12 +16,13 @@ public partial class ColorStudio
     private string slotColor = "#000000", shadow = "#000000", middle = "#848484", highlight = "#ffffff";
     private string? error, exportPath, lastRequest;
     private bool discardRequested, showCatalog;
-    private int catalogPage;
-    private const int CatalogPageSize = 12;
+    private int catalogPage, catalogFirstShown, catalogZoom = 1;
+    private static readonly int[] CatalogPageSizes = [12, 24, 48, 96, 192];
+    private int catalogPageSize = CatalogPageSizes[0];
     private readonly List<(int Id, string Image)> catalogTiles = [];
-    private int CatalogPageCount => Math.Max(1, (AssetsWorkspace.Entries(sampleKind).Count + CatalogPageSize - 1) / CatalogPageSize);
+    private int CatalogPageCount => Math.Max(1, (AssetsWorkspace.Entries(sampleKind).Count + catalogPageSize - 1) / catalogPageSize);
     private AssetKind sampleKind = AssetKind.Item;
-    private HueMode sampleMode = HueMode.Full;
+    private string sampleMode = "Auto";
     private ushort[] colors = new ushort[32];
     private readonly Dictionary<int, string> Originals = [], Previews = [];
     private HueEntry? Current => Studio.Document is { } document && Studio.SelectedId > 0 ? document.Read(Studio.SelectedId) : null;
@@ -118,7 +119,8 @@ public partial class ColorStudio
         EnsureAssets();
         var entry = AssetsWorkspace.Entries(sampleKind).FirstOrDefault(e => e.Id == id)
             ?? throw new KeyNotFoundException("This asset ID is not present in the selected collection.");
-        var sample = Studio.Add(sampleKind, id, AssetsWorkspace.Read(entry), sampleMode);
+        HueMode mode = sampleMode == "Auto" ? Resources.HueModeFor(Studio.DirectoryPath, sampleKind, id) : Enum.Parse<HueMode>(sampleMode);
+        var sample = Studio.Add(sampleKind, id, AssetsWorkspace.Read(entry), mode);
         Originals[sample.Key] = Png(sample.Image);
         RefreshPreview(sample);
     });
@@ -134,10 +136,16 @@ public partial class ColorStudio
         EnsureAssets(); LoadCatalog(); showCatalog = true;
     });
     private void ResetCatalog() => Run(() => { catalogPage = 0; if (showCatalog) { EnsureAssets(); LoadCatalog(); } });
+    private void ChangeCatalogPageSize() => Run(() =>
+    {
+        catalogPage = Math.Min(CatalogPageCount - 1, catalogFirstShown / catalogPageSize);
+        LoadCatalog();
+    });
     private void LoadCatalog()
     {
         catalogTiles.Clear();
-        foreach (var entry in AssetsWorkspace.Entries(sampleKind).Skip(catalogPage * CatalogPageSize).Take(CatalogPageSize))
+        catalogFirstShown = catalogPage * catalogPageSize;
+        foreach (var entry in AssetsWorkspace.Entries(sampleKind).Skip(catalogFirstShown).Take(catalogPageSize))
         {
             try { catalogTiles.Add((entry.Id, Png(AssetsWorkspace.Read(entry)))); }
             catch (Exception ex) when (ex is IOException or KeyNotFoundException) { /* Skip unreadable previews; ID lookup reports the record error. */ }

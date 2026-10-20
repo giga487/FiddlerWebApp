@@ -12,8 +12,10 @@ The same asset can appear more than once, with different color modes.
    duplicate it as a new hue, or create a neutral palette.
 3. Browse Item/Gump thumbnails and click to add samples, or enter asset IDs.
    The Gump / Art inspector also links to the studio with the asset preselected.
-4. Choose Full color or Gray pixels only independently on each card. The latter
-   preserves already colored details. Tiledata PartialHue flags are not read yet.
+4. Use Automatic (TileData) when adding Items to read the PartialHue flag,
+   including session metadata drafts. Missing TileData and Gumps use full color.
+   Override Full color or Gray pixels only independently on each card; the latter
+   preserves already colored details.
 5. Edit any of 32 samples, or generate a complete palette from three anchors.
    The anchors occupy slots 0, 15 and 31; interpolation occurs in RGB555 space.
    The color picker reports the quantized game color after each edit.
@@ -61,7 +63,8 @@ an already added snapshot; remove and add the sample again.
 
 Sample thumbnails fit within 192×160 px, with nearest-neighbor rendering and
 100%/200% display zoom. Large images are reduced for comparison. The visual asset
-picker reads 12 previews per page. The library lists 32 hues per page. Each hue
+picker offers 12, 24, 48, 96 or 192 previews per page and 100%–400% zoom.
+The library lists 32 hues per page. Each hue
 retains up to 50 undo steps. Rendering remains in Fiddler.Graphics; palette lookup,
 file parsing, drafts and exports have no browser or Windows Forms dependencies.
 

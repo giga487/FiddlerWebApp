@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 using FiddlerWebApp.Api;
+using FiddlerWebApp.Services.Plugins;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +24,10 @@ builder.Services.AddOpenApi(ApiDescription.Configure);
 builder.Services.AddSingleton<ApiWorkspaceRegistry>();
 builder.Services.AddHostedService<ApiWorkspaceReaper>();
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(services => new PluginRegistry(
+    Path.Combine(builder.Environment.ContentRootPath, "App_Data", "plugins"),
+    builder.Configuration, services.GetRequiredService<ILogger<PluginRegistry>>()));
+builder.Services.AddHostedService(services => services.GetRequiredService<PluginRegistry>());
 builder.Services.AddSingleton<ResourceLeaseManager>();
 builder.Services.AddSingleton<UserDirectory>();
 builder.Services.AddScoped<UserSession>();
@@ -32,6 +37,7 @@ builder.Services.AddSingleton(services => new SharedGumpStore(
 builder.AddWorkspaceAuthentication();
 builder.Services.AddScoped<MulWorkspace>();
 builder.Services.AddScoped<ColorStudioWorkspace>();
+builder.Services.AddScoped<ClientResourceWorkspace>();
 builder.Services.AddScoped<AnimationWorkspace>();
 builder.Services.AddScoped<WorldAssetWorkspace>();
 builder.Services.AddSingleton<Fiddler.Graphics.World.IsometricSceneRenderer>();

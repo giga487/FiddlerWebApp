@@ -10,6 +10,9 @@ public static class GumpImageImporter
     public const int MaxUploadBytes = 8 * 1024 * 1024;
 
     public static GumpRecord ImportPng(byte[] data)
+        => GumpEncoder.Encode(ImportImage(data));
+
+    public static DecodedImage ImportImage(byte[] data)
     {
         if (data.Length > MaxUploadBytes || data.Length < 8 || !data.AsSpan(0, 8).SequenceEqual(new byte[] {137,80,78,71,13,10,26,10}))
             throw new InvalidDataException("Select a valid PNG, maximum 8 MiB.");
@@ -24,6 +27,6 @@ public static class GumpImageImporter
             throw new InvalidDataException("PNG is truncated or cannot be decoded.");
         var pixels = new int[width * height];
         Marshal.Copy(bitmap.GetPixels(), pixels, 0, pixels.Length);
-        return GumpEncoder.Encode(DecodedImage.FromArgb(width, height, pixels));
+        return DecodedImage.FromArgb(width, height, pixels);
     }
 }

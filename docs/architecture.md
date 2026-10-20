@@ -9,7 +9,11 @@ src/
   Fiddler.Formats/
     Containers/Mul/    # IDX entries, offsets, lengths and bounded byte reads
     Containers/Uop/    # v4/v5 indexes, name hashes, zlib and Mythic decoding
-    Art/               # land/item mapping, MUL/UOP reads and image decoding
+    Art/               # land/item mapping, reads, encoding, session drafts/export
+    Fonts/             # ASCII/Unicode glyphs, masks, metrics, text preview/export
+    Localization/      # Cliloc UTF-8 records, flags, drafts and complete export
+    Metadata/          # legacy/extended TileData, preserved fields and export
+    Editing/           # bounded source reads and staged resource exports
     Gumps/             # MUL/UOP archives, RLE, encoding, drafts, comparison, export
     Animations/        # six MUL layouts, bodies, actions, directions, palette/RLE
     Multis/            # legacy/High Seas MUL and MultiCollection UOP components
@@ -46,6 +50,9 @@ have a decoded image.
 | Module | Status | Responsibilities |
 | --- | --- | --- |
 | Art | MUL; UOP in scenes | Land and static items; original catalog remains MUL |
+| Fonts | ASCII/Unicode and drafts | Glyph PNG replacement, signed offsets, text preview and export |
+| Localization | Plain/compressed Cliloc | UTF-8 strings and flags; plain Cliloc export |
+| Metadata | 32/64-bit TileData | Land/Item properties, flags and automatic PartialHue selection |
 | Gumps | MUL/UOP and drafts | Images, import, comparison, complete new MUL export |
 | Animations | MUL | Frames, directions, palettes, pivots and timing |
 | Multis | 12/16-byte MUL and UOP | Components, coordinates, flags and isometric preview |

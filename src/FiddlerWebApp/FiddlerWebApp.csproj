@@ -12,5 +12,6 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
     <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="5.0.0" />
     <ProjectReference Include="../Fiddler.Graphics/Fiddler.Graphics.csproj" />
+    <ProjectReference Include="../Fiddler.Plugin.Abstractions/Fiddler.Plugin.Abstractions.csproj" />
   </ItemGroup>
 </Project>

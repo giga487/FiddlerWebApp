@@ -1,0 +1,112 @@
+@page "/tiledata"
+@inherits ResourceEditorPage
+@using Fiddler.Formats.Metadata
+
+<PageTitle>TileData · Fiddler</PageTitle>
+<section class="resource-editor">
+    <div class="section-label">FIDDLER / METADATA</div><h1>TileData</h1>
+    <p>Edit client metadata independently of the graphics: names, flags and item properties. Unknown fields and group headers are preserved.</p>
+    @if (error is not null) { <p class="notice error" role="alert">@error</p> }
+    @if (exported is not null) { <p class="notice success" role="status">Exported: @exported</p> }
+    <div class="resource-toolbar"><label>Layout<select @bind="layout"><option value="@TileDataLayout.Auto">Detect from file size</option><option value="@TileDataLayout.Legacy32">Legacy / 32-bit flags</option><option value="@TileDataLayout.Extended64">Extended / 64-bit flags</option></select></label><button @onclick="Open" disabled="@busy">Open tiledata.mul</button><a href="/configuration">Configure folder</a></div>
+    @if (Resources.TileData is { } document)
+    {
+        <p>@Resources.TileDataDirectory · @document.Layout · 16,384 Land entries · @document.ItemCount Item entries · @document.DirtyCount drafts</p>
+        <div class="resource-toolbar"><label>Table<select @bind="kind" @bind:after="Filter"><option value="@AssetKind.Item">Items</option><option value="@AssetKind.Land">Land</option></select></label><label>Find ID or name<input @bind="query" @bind:after="Filter" /></label><button @onclick="Discard" disabled="@busy">Discard all drafts</button></div>
+        <div class="resource-columns">
+            <div>
+                <div class="file-table-container"><table class="file-table"><thead><tr><th>ID</th><th>Name</th><th>Flags</th><th></th></tr></thead><tbody>
+                    @foreach (var entry in filtered.Skip(page * 48).Take(48))
+                    { <tr class="@(selected?.Id == entry.Id && selected.Kind == entry.Kind ? "resource-selected" : "")"><td>@entry.Id</td><td>@entry.Name</td><td>@($"0x{entry.Flags:X}")</td><td><button @onclick="() => Select(entry)">Edit</button></td></tr> }
+                </tbody></table></div>
+                <div class="resource-toolbar"><button disabled="@(page == 0)" @onclick="() => page--">Previous</button><span>@(page + 1) / @PageCount</span><button disabled="@(page + 1 >= PageCount)" @onclick="() => page++">Next</button></div>
+            </div>
+            @if (selected is { } tile)
+            {
+                <div class="resource-panel"><h2>@tile.Kind @tile.Id</h2>
+                    <label>Name (20 ASCII characters)<input @bind="name" maxlength="20" /></label><label>Flags (hexadecimal)<input @bind="flags" /></label>
+                    <div class="resource-flags">@foreach (var flag in KnownFlags)
+                        { <label><input type="checkbox" checked="@HasFlag(flag.Bit)" @onchange="args => ToggleFlag(flag.Bit, args)" />@flag.Name</label> }</div>
+                    <div class="resource-fields">
+                        @if (tile.Kind == AssetKind.Land) { <label>Texture ID<input type="number" min="0" max="65535" @bind="texture" /></label> }
+                        else
+                        {
+                            <label>Weight<input type="number" min="0" max="255" @bind="weight" /></label><label>Quality / layer<input type="number" min="0" max="255" @bind="quality" /></label>
+                            <label>Quantity<input type="number" min="0" max="255" @bind="quantity" /></label><label>Animation ID<input type="number" min="0" max="65535" @bind="animation" /></label>
+                            <label>Hue byte<input type="number" min="0" max="255" @bind="hue" /></label><label>Height<input type="number" min="0" max="255" @bind="height" /></label>
+                            <label>Misc data<input type="number" min="-32768" max="32767" @bind="misc" /></label><label>Unknown 2<input type="number" min="0" max="255" @bind="unknown2" /></label>
+                            <label>Unknown 3<input type="number" min="0" max="255" @bind="unknown3" /></label><label>Stacking offset<input type="number" min="0" max="255" @bind="stacking" /></label><label>Value<input type="number" min="0" max="255" @bind="value" /></label>
+                        }
+                    </div>
+                    <div class="resource-toolbar"><button @onclick="Save" disabled="@busy">Save draft</button><button @onclick="Undo" disabled="@busy">Undo entry</button></div>
+                    <a href="@($"/art/manage?kind={tile.Kind}&id={tile.Id}")">Edit associated graphic</a>
+                    <p class="muted">PartialHue means only gray pixels are colored. Flags above the visible checkboxes can be edited in the hexadecimal field.</p>
+                </div>
+            }
+        </div>
+        <div class="resource-toolbar"><label>Output parent folder on server<input @bind="output" placeholder="Absolute path" /></label><button @onclick="Export" disabled="@busy">Export new tiledata.mul</button></div>
+    }
+</section>
+@code {
+    [SupplyParameterFromQuery(Name = "kind")] public string? RequestedKind { get; set; }
+    [SupplyParameterFromQuery(Name = "id")] public string? RequestedId { get; set; }
+    private TileDataLayout layout;
+    private AssetKind kind = AssetKind.Item;
+    private string query = "", name = "", flags = "0";
+    private TileMetadata? selected;
+    private TileMetadata[] filtered = [];
+    private int page;
+    private ushort texture, animation;
+    private byte weight, quality, quantity, hue, height, unknown2, unknown3, stacking, value;
+    private short misc;
+    private string? lastRequest;
+    private int PageCount => Math.Max(1, (filtered.Length + 47) / 48);
+    private static readonly (string Name, ulong Bit)[] KnownFlags = [("Background",1), ("Weapon",2), ("Transparent",4), ("Translucent",8), ("Wall",16), ("Damaging",32), ("Impassable",64), ("Wet",128), ("Surface",0x200), ("Bridge",0x400), ("Stackable",0x800), ("Window",0x1000), ("NoShoot",0x2000), ("Foliage",0x20000), ("PartialHue",0x40000), ("Container",0x200000), ("Wearable",0x400000), ("LightSource",0x800000), ("Animation",0x1000000), ("Roof",0x10000000), ("Door",0x20000000)];
+    protected override void OnInitialized()
+    {
+        if (Enum.TryParse<AssetKind>(RequestedKind, true, out var parsed) && parsed is AssetKind.Item or AssetKind.Land) kind = parsed;
+        Filter();
+    }
+    private Task Open() => Run(() =>
+    {
+        Resources.OpenTileData(Settings.Directory, layout); selected = null; Filter();
+        if (RequestedId is not null) Select(Resources.TileData!.Read(kind, Id(RequestedId)));
+    });
+    protected override void OnParametersSet()
+    {
+        string request = RequestedKind + ":" + RequestedId;
+        if (lastRequest == request) return;
+        lastRequest = request;
+        if (Enum.TryParse<AssetKind>(RequestedKind, true, out var parsed) && parsed is AssetKind.Item or AssetKind.Land) kind = parsed;
+        Filter();
+        if (Resources.TileData is not null && RequestedId is not null) _ = Run(() => Select(Resources.TileData.Read(kind, Id(RequestedId))));
+    }
+    private void Filter()
+    {
+        page = 0; selected = null;
+        if (Resources.TileData is not { } document) { filtered = []; return; }
+        string search = query.Trim();
+        bool numeric = int.TryParse(search, out int numericId);
+        if (search.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) numeric = int.TryParse(search[2..], System.Globalization.NumberStyles.HexNumber, null, out numericId);
+        filtered = Enumerable.Range(0, kind == AssetKind.Land ? 0x4000 : document.ItemCount).Select(id => document.Read(kind, id))
+            .Where(tile => search.Length == 0 || (numeric ? tile.Id == numericId : tile.Name.Contains(search, StringComparison.OrdinalIgnoreCase))).ToArray();
+    }
+    private void Select(TileMetadata tile)
+    {
+        selected = tile; name = tile.Name; flags = $"0x{tile.Flags:X}"; texture = tile.TextureId; weight = tile.Weight; quality = tile.Quality; quantity = tile.Quantity;
+        animation = tile.Animation; hue = tile.Hue; height = tile.Height; misc = tile.MiscData; unknown2 = tile.Unknown2; unknown3 = tile.Unknown3; stacking = tile.StackingOffset; value = tile.Value;
+    }
+    private ulong FlagValue() => ulong.TryParse(flags.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? flags[2..] : flags, System.Globalization.NumberStyles.HexNumber, null, out ulong bits) ? bits : throw new ArgumentException("Enter valid hexadecimal flags.");
+    private bool HasFlag(ulong bit) { try { return (FlagValue() & bit) != 0; } catch (ArgumentException) { return false; } }
+    private Task ToggleFlag(ulong bit, ChangeEventArgs args) => Run(() => flags = $"0x{((args.Value is true) ? FlagValue() | bit : FlagValue() & ~bit):X}");
+    private Task Save() => Run(() =>
+    {
+        if (selected is null) return;
+        var tile = selected with { Name = name, Flags = FlagValue(), TextureId = texture, Weight = weight, Quality = quality, Quantity = quantity, Animation = animation, Hue = hue, Height = height,
+            MiscData = misc, Unknown2 = unknown2, Unknown3 = unknown3, StackingOffset = stacking, Value = value };
+        Resources.TileData!.Put(tile); Filter(); Select(tile);
+    });
+    private Task Undo() => Run(() => { if (selected is { } tile) { Resources.TileData!.Undo(tile.Kind, tile.Id); Filter(); Select(Resources.TileData.Read(tile.Kind, tile.Id)); } });
+    private Task Discard() => Run(() => { Resources.TileData!.Discard(); Filter(); });
+    private Task Export() => RunAsync(async () => exported = await Task.Run(() => Resources.TileData!.Export(output)));
+}

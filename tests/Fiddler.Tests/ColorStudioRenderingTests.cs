@@ -31,6 +31,7 @@ public sealed class ColorStudioRenderingTests
             var services = new ServiceCollection();
             services.AddLogging();
             services.AddSingleton(studio);
+            services.AddSingleton<ClientResourceWorkspace>();
             services.AddSingleton<MulWorkspace>();
             services.AddSingleton<SkiaAssetRenderer>();
             services.AddSingleton(new ClientDirectorySettings(Path.Combine(folder, "settings.json"), folder));

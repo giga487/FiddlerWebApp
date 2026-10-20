@@ -13,10 +13,12 @@
         <div class="source-name">@Workspace.DisplayName</div>
         <a class="configure-link" href="/configuration">Configure folder and check files</a>
         <a class="configure-link" href="/gump/manage">Import and compare Gumps</a>
+        <a class="configure-link" href="/art/manage">Import and edit Items / Land</a>
         <a class="configure-link" href="/gump/composition">Compose Gumps on a grid</a>
         @if (Workspace.Gumps is not null)
         { <FluentButton OnClick="RefreshSharedWorkspace" Disabled="busy">Refresh shared Gumps</FluentButton><p class="muted">Shared revision @Workspace.SharedRevision</p> }
         @if (Workspace.Gumps?.HasChanges == true) { <p class="muted">@Workspace.Gumps.DirtyCount Gump drafts</p> }
+        @if (Workspace.Art?.HasChanges == true) { <p class="muted">@Workspace.Art.DirtyCount Item / Land drafts</p> }
         <div class="section-label collection-label">COLLECTIONS</div>
         <nav class="collections" aria-label="MUL collections">
             @foreach (var collection in Enum.GetValues<AssetKind>())
@@ -97,6 +99,8 @@
             <p class="muted inspector-footnote">Original transparency · nearest-neighbor scaling.</p>
             @if (kind is AssetKind.Item or AssetKind.Gump) { <a class="configure-link" href="@($"/colors?asset={kind}&id={selected.Id}")">Use in Color studio sample board</a> }
             @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/manage?id={selected.Id}")">Import or compare this ID</a> }
+            @if (kind is AssetKind.Item or AssetKind.Land)
+            { <a class="configure-link" href="@($"/art/manage?kind={kind}&id={selected.Id}")">Edit this graphic</a><a class="configure-link" href="@($"/tiledata?kind={kind}&id={selected.Id}")">View and edit TileData</a> }
             @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/composition?id={selected.Id}")">Use in composition</a> }
         }
     </aside>

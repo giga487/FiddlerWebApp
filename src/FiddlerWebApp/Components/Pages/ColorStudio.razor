@@ -4,6 +4,7 @@
 @inject MulWorkspace AssetsWorkspace
 @inject ClientDirectorySettings Settings
 @inject SkiaAssetRenderer Renderer
+@inject ClientResourceWorkspace Resources
 
 <PageTitle>Color studio · Fiddler</PageTitle>
 <div class="color-studio">
@@ -88,7 +89,7 @@
                 <form class="color-add" @onsubmit="AddSample" @onsubmit:preventDefault>
                     <label>Asset type<select @bind="sampleKind" @bind:after="ResetCatalog"><option value="@AssetKind.Item">Item</option><option value="@AssetKind.Gump">Gump</option></select></label>
                     <label>Asset ID<input @bind="sampleId" placeholder="Decimal or 0x…" /></label>
-                    <label>Color mode<select @bind="sampleMode"><option value="@HueMode.Full">Full color</option><option value="@HueMode.GrayPixelsOnly">Gray pixels only</option></select></label>
+                    <label>Color mode<select @bind="sampleMode"><option value="Auto">Automatic (TileData)</option><option value="@nameof(HueMode.Full)">Full color</option><option value="@nameof(HueMode.GrayPixelsOnly)">Gray pixels only</option></select></label>
                     <button type="submit" disabled="@(Studio.Document is null)">Add sample</button>
                     <button type="button" disabled="@(Studio.Document is null)" @onclick="ToggleCatalog">@(showCatalog ? "Close asset picker" : "Browse assets visually")</button>
                 </form>
@@ -96,7 +97,7 @@
                 {
                     <div class="color-asset-picker" aria-label="Choose sample assets">
                         <p class="muted">@sampleKind catalog · click an image to add it using the selected color mode.</p>
-                        <div class="color-picker-grid">
+                        <div class="color-picker-grid" style="--catalog-zoom:@catalogZoom">
                             @foreach (var tile in catalogTiles)
                             {
                                 <button @onclick="() => AddCatalogSample(tile.Id)" aria-label="@($"Add {sampleKind} {tile.Id} to sample board")">
@@ -105,11 +106,21 @@
                             }
                         </div>
                         @if (catalogTiles.Count == 0) { <p>No readable assets on this page. Try another page or collection.</p> }
-                        <div class="color-pagination"><button disabled="@(catalogPage == 0)" @onclick="PreviousAssets">Previous assets</button>
+                        <div class="color-pagination color-catalog-pagination">
+                            <label class="color-page-size">Show
+                                <select @bind="catalogPageSize" @bind:after="ChangeCatalogPageSize" aria-label="Assets per page">
+                                    @foreach (int size in CatalogPageSizes) { <option value="@size">@size</option> }
+                                </select> per page</label>
+                            <label class="color-page-size">Zoom
+                                <select @bind="catalogZoom" aria-label="Asset preview zoom">
+                                    <option value="1">100%</option><option value="2">200%</option>
+                                    <option value="3">300%</option><option value="4">400%</option>
+                                </select></label>
+                            <button disabled="@(catalogPage == 0)" @onclick="PreviousAssets">Previous assets</button>
                             <span>@(catalogPage + 1) / @CatalogPageCount</span><button disabled="@(catalogPage + 1 >= CatalogPageCount)" @onclick="NextAssets">Next assets</button></div>
                     </div>
                 }
-                <p class="muted">Add the same asset twice to compare both modes. Gray pixels only preserves already colored details. Modes are manual; tiledata flags are not read yet.</p>
+                <p class="muted">Automatic uses the Item's PartialHue flag from TileData, including this session's metadata drafts. Missing TileData and Gumps use full color. Override the mode per sample to compare both results.</p>
                 @if (Studio.Samples.Count == 0)
                 {
                     <div class="color-empty"><h3>Choose objects that matter to your color</h3><p>Try a garment, a weapon, furniture and a Gump. Add them by ID above or send them here from the Gump / Art catalog.</p></div>

@@ -1,0 +1,122 @@
+@page "/plugins"
+@using Fiddler.Plugin.Abstractions
+@using FiddlerWebApp.Services.Plugins
+@using FiddlerWebApp.Services.Users
+@inject PluginRegistry Registry
+@inject UserSession Session
+@inject MulWorkspace Workspace
+@inject ClientDirectorySettings Settings
+
+<PageTitle>Plugins · Fiddler</PageTitle>
+<section class="configuration">
+    <div class="section-label">FIDDLER / EXTENSIONS</div><h1>Plugins</h1>
+    @if (!Registry.CanManage(Session))
+    {
+        <p>Plugin management is available to configured administrators.</p>
+        <p>Your account ID: <code>@Session.User?.Id</code></p>
+        <p>The server operator can grant access through <code>Plugins:AdministratorIds</code> in the server configuration.</p>
+    }
+    else
+    {
+        <p>Install trusted server plugins, activate their commands and run them on assets from your configured client folder.</p>
+        <p class="notice">Activated DLLs execute on the server with the application's permissions and affect all users. Only install code you trust. Desktop WinForms plugins require adaptation to this plugin interface.</p>
+        @if (error is not null) { <div class="notice error" role="alert">@error</div> }
+        @if (message is not null) { <p class="notice success" role="status">@message</p> }
+        <h2>Install a plugin</h2>
+        <p>Choose a DLL with no private dependencies, or a ZIP containing the entry DLL and its dependencies. Maximum upload: 64 MiB.</p>
+        <div class="color-actions">
+            <label>DLL or ZIP package<InputFile OnChange="SelectPackage" accept=".dll,.zip" disabled="@busy" @key="uploadKey" /></label>
+            <label>Entry DLL inside ZIP<input @bind="entryAssembly" placeholder="MyPlugin.dll" disabled="@busy" /></label>
+            <label><span><input type="checkbox" @bind="trusted" disabled="@busy" /> I trust this plugin to execute on the server.</span></label>
+            <button class="color-primary" @onclick="Install" disabled="@(busy || package is null || !trusted)">Install inactive</button>
+        </div>
+        <h2>Installed plugins</h2>
+        <button @onclick="Refresh" disabled="@busy">Refresh list</button>
+        @if (plugins.Count == 0) { <p>No plugins installed.</p> }
+        @foreach (var plugin in plugins)
+        {
+            <article class="color-panel" style="margin-top:16px" @key="plugin.Key">
+                <h3>@(plugin.Name ?? plugin.FileName) @plugin.Version</h3>
+                <p>@plugin.Description</p>
+                <p><strong>@(plugin.Loaded ? "Active" : plugin.Error is not null ? "Activation failed" : "Inactive")</strong> · @plugin.FileName @plugin.Id</p>
+                @if (plugin.Error is not null) { <p class="notice error" role="alert">@plugin.Error</p> }
+                <div class="color-actions">
+                    @if (!plugin.Loaded) { <button @onclick="() => Enable(plugin.Key, true)" disabled="@busy">Activate</button> }
+                    @if (plugin.Enabled) { <button @onclick="() => Enable(plugin.Key, false)" disabled="@busy">Deactivate</button> }
+                    @if (!plugin.Enabled) { <button @onclick="() => Remove(plugin.Key)" disabled="@busy">Uninstall</button> }
+                </div>
+                @foreach (var command in plugin.Commands)
+                {
+                    <p><strong>@command.Name</strong> — @command.Description
+                        <button @onclick="() => Execute(plugin.Key, command.Id)" disabled="@busy">Run on selected asset</button></p>
+                }
+            </article>
+        }
+        <h2>Asset for plugin commands</h2>
+        <p>Uses your current archive and drafts. If needed, opens your configured folder. Commands receive a copy of the decoded pixels; this interface does not publish asset changes.</p>
+        <div class="color-actions">
+            <label>Asset type<select @bind="kind" disabled="@busy"><option value="@AssetKind.Item">Item</option><option value="@AssetKind.Land">Land</option><option value="@AssetKind.Gump">Gump</option></select></label>
+            <label>Asset ID<input @bind="assetId" placeholder="Decimal or 0x…" disabled="@busy" /></label>
+        </div>
+        @if (result is not null) { <h2>Command result</h2><pre style="white-space:pre-wrap;overflow-wrap:anywhere" role="status">@result</pre> }
+    }
+</section>
+
+@code {
+    private IReadOnlyList<PluginView> plugins = [];
+    private IBrowserFile? package;
+    private string entryAssembly = "", assetId = "";
+    private string? result, error, message;
+    private AssetKind kind = AssetKind.Item;
+    private bool trusted, busy;
+    private int uploadKey;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Registry.CanManage(Session)) await Refresh();
+    }
+    private void SelectPackage(InputFileChangeEventArgs args)
+    { package = args.File; trusted = false; error = null; message = null; }
+    private Task Refresh() => Run(async () => plugins = await Registry.ListAsync(Session));
+    private Task Install() => Run(async () =>
+    {
+        if (!trusted || package is null) throw new InvalidOperationException("Select a trusted plugin package first.");
+        await using var source = package.OpenReadStream(PluginRegistry.MaxUploadBytes);
+        await Registry.InstallAsync(Session, package.Name, entryAssembly, source);
+        plugins = await Registry.ListAsync(Session);
+        package = null; trusted = false; uploadKey++;
+        message = "Plugin installed inactive. Activate it to load its commands.";
+    });
+    private Task Enable(string key, bool enabled) => Run(async () =>
+    {
+        await Registry.SetEnabledAsync(Session, key, enabled);
+        plugins = await Registry.ListAsync(Session);
+    });
+    private Task Remove(string key) => Run(async () =>
+    {
+        await Registry.RemoveAsync(Session, key);
+        plugins = await Registry.ListAsync(Session);
+    });
+    private Task Execute(string key, string command) => Run(async () =>
+    {
+        if (!Registry.CanManage(Session)) throw new UnauthorizedAccessException("Administrator access required.");
+        string input = assetId.Trim();
+        bool valid = input.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            ? int.TryParse(input[2..], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int id)
+            : int.TryParse(input, out id);
+        if (!valid || id < 0) throw new ArgumentException("Enter an asset ID in decimal or hexadecimal.");
+        if (!Workspace.IsOpen || !string.Equals(Workspace.CurrentDirectory, Settings.Directory, StringComparison.OrdinalIgnoreCase)) Workspace.Open(Settings.Directory);
+        var entry = Workspace.Entries(kind).FirstOrDefault(item => item.Id == id) ?? throw new KeyNotFoundException("Asset not found in the selected collection.");
+        var image = Workspace.Read(entry);
+        result = null;
+        result = await Registry.ExecuteAsync(Session, key, command, new(kind.ToString(), id, image.Width, image.Height, image.Pixels.ToArray()));
+    });
+    private async Task Run(Func<Task> action)
+    {
+        if (busy) return;
+        busy = true; error = null; message = null;
+        try { await action(); }
+        catch (Exception ex) { error = ex.GetBaseException().Message; }
+        finally { busy = false; }
+    }
+}

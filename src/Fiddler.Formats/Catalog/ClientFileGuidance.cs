@@ -20,6 +20,15 @@ public sealed record ClientFileGuidance(ClientFileImportance Importance, string 
         if (animation && name.EndsWith(".uop", StringComparison.Ordinal))
             return new(ClientFileImportance.NotUsedByViewer, feature, purpose,
                 "Animation UOP playback is not implemented. The web viewer requires the matching anim MUL/IDX pair instead.");
+        if (name.StartsWith("cliloc", StringComparison.Ordinal))
+            return new(ClientFileImportance.RequiredForFeature, "Cliloc editor", purpose,
+                "This language file is required to browse and edit its strings. Other Cliloc languages and graphic viewers remain independent.");
+        if (name == "fonts.mul" || name.StartsWith("unifont", StringComparison.Ordinal))
+            return new(ClientFileImportance.RequiredForFeature, "Font editor", purpose,
+                "This font file is required to browse, replace and preview its glyphs. Other font files and graphic viewers remain independent.");
+        if (name == "tiledata.mul")
+            return new(ClientFileImportance.RequiredForFeature, "TileData editor", purpose,
+                "Required to edit Land/Item metadata and infer PartialHue in Color studio. Without it, graphics remain viewable and hue modes can be selected manually.");
         if (group.Definition.ViewerSupported)
         {
             string alternatives = string.Join(" or ", group.Definition.Alternatives.Select(a => string.Join(" + ", a)));
@@ -76,7 +85,7 @@ public sealed record ClientFileGuidance(ClientFileImportance Importance, string 
             "radarcol.mul" => "Land/item colors used for radar and minimap rendering.",
             "skillgrp.mul" => "Grouping of skills into categories.",
             "speech.mul" => "Speech keyword data used by the game client.",
-            "tiledata.mul" => "Land/item names, flags and properties. Current previews decode Art and coordinates without tile metadata.",
+            "tiledata.mul" => "Land/item names, flags and properties, including the PartialHue flag used by automatic Item coloring.",
             "verdata.mul" => "Legacy replacement records that patch base client archives.",
             _ => throw new InvalidOperationException($"No file guidance is defined for {name}.")
         };

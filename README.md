@@ -160,7 +160,9 @@ different modes. Every card compares its original image with the current palette
 Edit any of the 32 RGB555 samples or generate a palette from shadow, midtone and
 highlight colors. All cards update together. Choose **Full color** or **Gray
 pixels only** per card, and use light/dark/checkerboard backgrounds and zoom.
-Undo, restore and duplicate support experimentation. No tiledata flags are inferred.
+Undo, restore and duplicate support experimentation. Automatic mode reads the
+Item PartialHue flag from TileData, including session drafts; manual overrides
+remain available. Missing TileData and Gumps default to full color.
 Game hue IDs are one-based; hue 0 means the original image. New hues append after
 the source entries without changing existing IDs.
 
@@ -231,3 +233,23 @@ Current work focuses on formats, visualization and shared Gump editing. Google
 sign-in is configurable, with an optional account allowlist. Deployment and
 authenticated asset downloads remain future work. Edit coordination currently
 supports one server process; multiple workers need a distributed lock/version store.
+
+## Fonts, Cliloc, TileData and Art editing
+
+Use **Fonts** (`/fonts`) to browse and replace ASCII/Unicode glyphs, adjust
+Unicode offsets and preview text. **Cliloc** (`/cliloc`) edits localized strings
+and flags. **TileData** (`/tiledata`) edits Land/Item names, flags and properties
+in both 32-bit and 64-bit layouts. **Import and edit Items / Land**
+(`/art/manage`) adds, replaces or removes graphics from Art MUL/IDX files.
+PNG imports show the converted game colors immediately.
+
+These editors keep private session drafts and export complete files into new
+server folders. They preserve original files and do not use shared Gump
+publishing. See [client resource editing](docs/client-resource-editing.md) for
+formats, limits and the remaining desktop parity gaps.
+
+## Server plugins
+
+The [plugin guide](docs/plugins.md) explains administrator setup, manual DLL/ZIP
+installation, activation and the `IFiddlerPlugin` SDK. The included Asset
+information plugin runs commands against decoded Item, Land and Gump images.
