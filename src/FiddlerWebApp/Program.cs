@@ -31,6 +31,7 @@ builder.Services.AddSingleton(services => new SharedGumpStore(
     Path.Combine(builder.Environment.ContentRootPath, "App_Data", "shared-gumps"), services.GetRequiredService<ResourceLeaseManager>()));
 builder.AddWorkspaceAuthentication();
 builder.Services.AddScoped<MulWorkspace>();
+builder.Services.AddScoped<ColorStudioWorkspace>();
 builder.Services.AddScoped<AnimationWorkspace>();
 builder.Services.AddScoped<WorldAssetWorkspace>();
 builder.Services.AddSingleton<Fiddler.Graphics.World.IsometricSceneRenderer>();

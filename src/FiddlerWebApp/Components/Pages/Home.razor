@@ -95,6 +95,7 @@
                 <dt>Dimensions</dt><dd>@(preview is null ? "—" : $"{selectedWidth} × {selectedHeight} px")</dd>
                 <dt>Archive offset</dt><dd>@(kind == AssetKind.Gump && Workspace.Gumps?.IsModified(selected.Id) == true ? "Draft" : selected.Offset < 0 ? "—" : selected.Offset.ToString("N0"))</dd><dt>Record</dt><dd>@selected.Length.ToString("N0") bytes</dd></dl>
             <p class="muted inspector-footnote">Original transparency · nearest-neighbor scaling.</p>
+            @if (kind is AssetKind.Item or AssetKind.Gump) { <a class="configure-link" href="@($"/colors?asset={kind}&id={selected.Id}")">Use in Color studio sample board</a> }
             @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/manage?id={selected.Id}")">Import or compare this ID</a> }
             @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/composition?id={selected.Id}")">Use in composition</a> }
         }

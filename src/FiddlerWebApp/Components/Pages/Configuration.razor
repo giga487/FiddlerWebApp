@@ -16,7 +16,7 @@
         <form @onsubmit="Analyze" @onsubmit:preventDefault>
             <label for="client-directory">Absolute path on the server</label>
             <div class="directory-input-row"><input id="client-directory" @bind="directory" @bind:event="oninput" @bind:after="Invalidate"
-                placeholder="D:\Data\Client or /srv/seahats/client" disabled="@busy" spellcheck="false" autocomplete="off" />
+                placeholder="D:\Data\Client or /srv/uo/client" disabled="@busy" spellcheck="false" autocomplete="off" />
                 <button class="search-submit" type="submit" disabled="@busy">@(busy ? "Scanning…" : "Scan folder")</button></div>
         </form>
         <p class="muted">Saved folder: <strong class="saved-directory">@(string.IsNullOrEmpty(Settings.Directory) ? "None" : Settings.Directory)</strong></p>
