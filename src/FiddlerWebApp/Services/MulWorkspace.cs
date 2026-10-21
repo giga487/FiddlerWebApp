@@ -73,6 +73,23 @@ public sealed class MulWorkspace : IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
 
+    public IReadOnlyList<MulEntry> CatalogEntries(AssetKind kind, bool includeEmpty = true)
+    {
+        var entries = Entries(kind);
+        if (!includeEmpty) return entries;
+        int slots = kind switch
+        {
+            AssetKind.Land => Math.Min(0x4000, art?.SlotCount ?? 0),
+            AssetKind.Item => Math.Max(0, (art?.SlotCount ?? 0) - 0x4000),
+            AssetKind.Gump => gumps?.SlotCount ?? 0,
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+        var occupied = entries.ToDictionary(entry => entry.Id);
+        return Enumerable.Range(0, slots)
+            .Select(id => occupied.TryGetValue(id, out var entry) ? entry : new MulEntry(kind, id, -1, 0, 0))
+            .ToArray();
+    }
+
     public DecodedImage Read(MulEntry entry) => (entry.Kind switch
     {
         AssetKind.Land => art?.Read(AssetKind.Land, entry.Id),

@@ -9,6 +9,7 @@ public sealed class ArtDocument : IDisposable
     private readonly Dictionary<int, byte[]?> edits = [];
     public int DirtyCount => edits.Count;
     public bool HasChanges => DirtyCount > 0;
+    public int SlotCount => Math.Max(source.SlotCount, edits.Keys.DefaultIfEmpty(-1).Max() + 1);
     private ArtDocument(IndexedMulFile source) => this.source = source;
     public static ArtDocument Open(string index, string data) => new(IndexedMulFile.Open(index, data));
     private static int Slot(AssetKind kind, int id)

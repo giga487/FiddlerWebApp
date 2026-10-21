@@ -7,6 +7,7 @@ public sealed class GumpDocument : IDisposable
     public IReadOnlyList<MulEntry> Entries { get; private set; }
     public int DirtyCount => edits.Count;
     public bool HasChanges => edits.Count > 0;
+    public int SlotCount => Math.Max(source.SlotCount, Entries.Select(entry => entry.Id).DefaultIfEmpty(-1).Max() + 1);
     public bool IsModified(int id) => edits.ContainsKey(id);
     public IReadOnlyDictionary<int, GumpRecord> GetChanges() => edits.ToDictionary(pair => pair.Key, pair => pair.Value with { Data = pair.Value.Data.ToArray() });
     public string Format => source is GumpUopReader ? "UOP" : "MUL / IDX";

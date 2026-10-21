@@ -25,7 +25,7 @@
             {
                 <button class="collection @(kind == collection ? "active" : "")" disabled="@busy"
                         aria-pressed="@(kind == collection)" @onclick="() => ChangeKind(collection)">
-                    <span>@Label(collection)</span><span class="count">@Workspace.Entries(collection).Count.ToString("N0")</span>
+                    <span>@Label(collection)</span><span class="count">@Workspace.CatalogEntries(collection, showEmpty).Count.ToString("N0")</span>
                 </button>
             }
         </nav>
@@ -48,9 +48,10 @@
                 <label for="asset-id">Find ID</label><input id="asset-id" placeholder="E.g. 1234 or 0x04D2" @bind="query" disabled="@busy" />
                 <button class="search-submit" type="submit" disabled="@busy">Find</button>
                 <FluentButton OnClick="ResetSearch" Disabled="busy">All</FluentButton>
+                <label><input type="checkbox" @bind="showEmpty" @bind:after="Refresh" disabled="@busy" /> Show empty slots</label>
             </form>
             <div class="results-toolbar">
-                <div class="results-summary" aria-live="polite">@filtered.Count.ToString("N0") assets · @Workspace.DisplayName</div>
+                <div class="results-summary" aria-live="polite">@filtered.Count.ToString("N0") slots · @Workspace.DisplayName</div>
                 <label class="page-size">Show
                     <select @bind="pageSize" @bind:after="ChangePageSize" disabled="@busy" aria-label="Assets per page">
                         @foreach (int size in PageSizes) { <option value="@size">@size</option> }
@@ -68,7 +69,8 @@
                         <button class="asset-tile @(selected?.Id == tile.Entry.Id ? "selected" : "")" @onclick="() => Select(tile.Entry)"
                                 aria-label="@($"Open {Label(kind)} ID 0x{tile.Entry.Id:X4}")" aria-pressed="@(selected?.Id == tile.Entry.Id)">
                             <span class="thumbnail checker">
-                                @if (tile.Image is not null) { <img src="@tile.Image" alt="" width="@tile.Width" height="@tile.Height" /> }
+                                @if (tile.Entry.Length == 0) { <span class="invalid-label">Empty slot</span> }
+                                else if (tile.Image is not null) { <img src="@tile.Image" alt="" width="@tile.Width" height="@tile.Height" /> }
                                 else { <span class="invalid-label" title="@tile.Error">Invalid record</span> }
                             </span>
                             <span class="tile-caption"><strong>@($"0x{tile.Entry.Id:X4}")</strong><span>@tile.Entry.Id</span></span>
@@ -90,18 +92,19 @@
         {
             <div class="preview-toolbar"><label for="zoom">Zoom</label><select id="zoom" @bind="zoom"><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option></select></div>
             <div class="preview checker">
-                @if (preview is not null) { <img src="@preview" alt="@($"Preview {Label(kind)}, ID {selected.Id}")" style="width:@(selectedWidth * zoom)px;height:@(selectedHeight * zoom)px" /> }
+                @if (selected.Length == 0) { <p class="muted">Empty slot. Import a graphic into this ID to fill it.</p> }
+                else if (preview is not null) { <img src="@preview" alt="@($"Preview {Label(kind)}, ID {selected.Id}")" style="width:@(selectedWidth * zoom)px;height:@(selectedHeight * zoom)px" /> }
                 else { <p class="notice error" role="alert">@previewError</p> }
             </div>
             <dl class="metadata"><dt>Hexadecimal ID</dt><dd>@($"0x{selected.Id:X4}")</dd><dt>Decimal ID</dt><dd>@selected.Id</dd>
                 <dt>Dimensions</dt><dd>@(preview is null ? "—" : $"{selectedWidth} × {selectedHeight} px")</dd>
                 <dt>Archive offset</dt><dd>@(kind == AssetKind.Gump && Workspace.Gumps?.IsModified(selected.Id) == true ? "Draft" : selected.Offset < 0 ? "—" : selected.Offset.ToString("N0"))</dd><dt>Record</dt><dd>@selected.Length.ToString("N0") bytes</dd></dl>
             <p class="muted inspector-footnote">Original transparency · nearest-neighbor scaling.</p>
-            @if (kind is AssetKind.Item or AssetKind.Gump) { <a class="configure-link" href="@($"/colors?asset={kind}&id={selected.Id}")">Use in Color studio sample board</a> }
+            @if (selected.Length > 0 && kind is (AssetKind.Item or AssetKind.Gump)) { <a class="configure-link" href="@($"/colors?asset={kind}&id={selected.Id}")">Use in Color studio sample board</a> }
             @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/manage?id={selected.Id}")">Import or compare this ID</a> }
             @if (kind is AssetKind.Item or AssetKind.Land)
             { <a class="configure-link" href="@($"/art/manage?kind={kind}&id={selected.Id}")">Edit this graphic</a><a class="configure-link" href="@($"/tiledata?kind={kind}&id={selected.Id}")">View and edit TileData</a> }
-            @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/composition?id={selected.Id}")">Use in composition</a> }
+            @if (selected.Length > 0 && kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/composition?id={selected.Id}")">Use in composition</a> }
         }
     </aside>
 </div>
@@ -118,6 +121,7 @@
     private string? error, preview, previewError;
     private int page, firstShown, selectedWidth, selectedHeight, zoom = 1;
     private bool busy;
+    private bool showEmpty = true;
     private int PageCount => Math.Max(1, (filtered.Count + pageSize - 1) / pageSize);
     private sealed record Tile(MulEntry Entry, string? Image, int Width, int Height, string? Error);
     private static string Label(AssetKind value) => value switch { AssetKind.Land => "Land tiles", AssetKind.Item => "Items", _ => "Gump" };
@@ -134,8 +138,8 @@
         try
         {
             Workspace.Open(Settings.Directory);
-            if (Workspace.Entries(kind).Count == 0)
-                kind = Enum.GetValues<AssetKind>().FirstOrDefault(k => Workspace.Entries(k).Count > 0);
+            if (Workspace.CatalogEntries(kind, showEmpty).Count == 0)
+                kind = Enum.GetValues<AssetKind>().FirstOrDefault(k => Workspace.CatalogEntries(k, showEmpty).Count > 0);
             query = appliedQuery = "";
             Refresh();
         }
@@ -161,7 +165,7 @@
     private void Refresh()
     {
         error = null; page = 0; selected = null; preview = previewError = null;
-        var entries = Workspace.Entries(kind);
+        var entries = Workspace.CatalogEntries(kind, showEmpty);
         filtered = appliedQuery.Length == 0 ? entries : TryId(appliedQuery, out int id) ? entries.Where(e => e.Id == id).ToArray() : [];
         LoadPage();
     }
@@ -179,6 +183,11 @@
         firstShown = page * pageSize;
         foreach (var entry in filtered.Skip(firstShown).Take(pageSize))
         {
+            if (entry.Length == 0)
+            {
+                tiles.Add(new Tile(entry, null, 0, 0, null));
+                continue;
+            }
             try
             {
                 var image = Workspace.Read(entry);
@@ -192,6 +201,7 @@
     private void Select(MulEntry entry)
     {
         selected = entry; preview = previewError = null; zoom = 1;
+        if (entry.Length == 0) return;
         try
         {
             var image = Workspace.Read(entry);
