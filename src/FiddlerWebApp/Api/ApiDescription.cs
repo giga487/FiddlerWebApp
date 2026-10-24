@@ -10,7 +10,7 @@ public static class ApiDescription
         options.ShouldInclude = description => description.RelativePath?.StartsWith("api/v1/", StringComparison.Ordinal) == true;
         options.AddDocumentTransformer((document, _, _) =>
         {
-            document.Info = new() { Title = "Fiddler HTTP API", Version = "v1", Description = "User-owned asset workspaces. Uses the web application's login cookie. MCP, bearer tokens and M2M are not implemented." };
+            document.Info = new() { Title = ApplicationInfo.ApiTitle, Version = "v1", Description = "User-owned asset workspaces. Uses the web application's login cookie. MCP, bearer tokens and M2M are not implemented." };
             document.Components ??= new();
             document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
             document.Components.SecuritySchemes["WorkspaceCookie"] = new OpenApiSecurityScheme

@@ -1,0 +1,213 @@
+@page "/gump"
+@inject MulWorkspace Workspace
+@inject SkiaAssetRenderer Renderer
+@inject ClientDirectorySettings Settings
+
+<PageTitle>MUL archive · @ApplicationInfo.Name</PageTitle>
+<div class="studio">
+    <aside class="sidebar">
+        <div class="section-label">WORKSPACE</div><h1>MUL archive</h1>
+        <p class="muted">Explore the client graphics.</p>
+        <FluentButton Appearance="ButtonAppearance.Primary" OnClick="Open" Disabled="busy">Open archive</FluentButton>
+        <div class="source-name">@Workspace.DisplayName</div>
+        <a class="configure-link" href="/configuration">Configure folder and check files</a>
+        <a class="configure-link" href="/gump/manage">Import and compare Gumps</a>
+        <a class="configure-link" href="/art/manage">Import and edit Items / Land</a>
+        <a class="configure-link" href="/gump/composition">Compose Gumps on a grid</a>
+        @if (Workspace.Gumps is not null)
+        { <FluentButton OnClick="RefreshSharedWorkspace" Disabled="busy">Refresh shared Gumps</FluentButton><p class="muted">Shared revision @Workspace.SharedRevision</p> }
+        @if (Workspace.Gumps?.HasChanges == true) { <p class="muted">@Workspace.Gumps.DirtyCount Gump drafts</p> }
+        @if (Workspace.Art?.HasChanges == true) { <p class="muted">@Workspace.Art.DirtyCount Item / Land drafts</p> }
+        <div class="section-label collection-label">COLLECTIONS</div>
+        <nav class="collections" aria-label="MUL collections">
+            @foreach (var collection in Enum.GetValues<AssetKind>())
+            {
+                <button class="collection @(kind == collection ? "active" : "")" disabled="@busy"
+                        aria-pressed="@(kind == collection)" @onclick="() => ChangeKind(collection)">
+                    <span>@Label(collection)</span><span class="count">@Workspace.CatalogEntries(collection, showEmpty).Count.ToString("N0")</span>
+                </button>
+            }
+        </nav>
+        <div class="sidebar-note"><span class="status-dot"></span> SkiaSharp rendering<br /><span class="muted">Original files are open read-only.</span></div>
+    </aside>
+    <section class="browser" aria-label="Asset catalog">
+        <div class="browser-heading"><div><div class="section-label">CLIENT LIBRARY</div><h2>@Label(kind)</h2></div><span class="format-badge">@(kind == AssetKind.Gump ? Workspace.Gumps?.Format ?? "MUL / UOP" : "MUL / IDX")</span></div>
+        @if (error is not null) { <div class="notice error" role="alert">@error</div> }
+        @if (!Workspace.IsOpen)
+        {
+            <div class="empty-state"><div class="empty-symbol">◇</div><h2>Your library in the browser</h2>
+                <p>Open the configured data folder to explore land tiles, items and Gumps.</p>
+                <div class="supported"><span>art.mul + artidx.mul</span><span>gumpart.mul + gumpidx.mul</span></div>
+                <p class="muted">Previews are generated on the server with SkiaSharp.</p>
+            </div>
+        }
+        else
+        {
+            <form class="search-bar" @onsubmit="Search" @onsubmit:preventDefault>
+                <label for="asset-id">Find ID</label><input id="asset-id" placeholder="E.g. 1234 or 0x04D2" @bind="query" disabled="@busy" />
+                <button class="search-submit" type="submit" disabled="@busy">Find</button>
+                <FluentButton OnClick="ResetSearch" Disabled="busy">All</FluentButton>
+                <label><input type="checkbox" @bind="showEmpty" @bind:after="Refresh" disabled="@busy" /> Show empty slots</label>
+            </form>
+            <div class="results-toolbar">
+                <div class="results-summary" aria-live="polite">@filtered.Count.ToString("N0") slots · @Workspace.DisplayName</div>
+                <label class="page-size">Show
+                    <select @bind="pageSize" @bind:after="ChangePageSize" disabled="@busy" aria-label="Assets per page">
+                        @foreach (int size in PageSizes) { <option value="@size">@size</option> }
+                    </select> per page</label>
+            </div>
+            @if (filtered.Count == 0)
+            {
+                <div class="empty-state"><h3>No assets found</h3><p>Check the ID or select another collection.</p></div>
+            }
+            else
+            {
+                <div class="asset-grid">
+                    @foreach (var tile in tiles)
+                    {
+                        <button class="asset-tile @(selected?.Id == tile.Entry.Id ? "selected" : "")" @onclick="() => Select(tile.Entry)"
+                                aria-label="@($"Open {Label(kind)} ID 0x{tile.Entry.Id:X4}")" aria-pressed="@(selected?.Id == tile.Entry.Id)">
+                            <span class="thumbnail checker">
+                                @if (tile.Entry.Length == 0) { <span class="invalid-label">Empty slot</span> }
+                                else if (tile.Image is not null) { <img src="@tile.Image" alt="" width="@tile.Width" height="@tile.Height" /> }
+                                else { <span class="invalid-label" title="@tile.Error">Invalid record</span> }
+                            </span>
+                            <span class="tile-caption"><strong>@($"0x{tile.Entry.Id:X4}")</strong><span>@tile.Entry.Id</span></span>
+                        </button>
+                    }
+                </div>
+                <div class="pagination"><FluentButton OnClick="Previous" Disabled="@(busy || page == 0)">Previous</FluentButton>
+                    <span>Page @(page + 1) of @PageCount</span><FluentButton OnClick="Next" Disabled="@(busy || page + 1 >= PageCount)">Next</FluentButton></div>
+            }
+        }
+    </section>
+    <aside class="inspector" aria-label="Asset preview">
+        <div class="section-label">INSPECTOR</div><h2>Preview</h2>
+        @if (selected is null)
+        {
+            <div class="inspector-empty">Select an asset<br />to preview it here.</div>
+        }
+        else
+        {
+            <div class="preview-toolbar"><label for="zoom">Zoom</label><select id="zoom" @bind="zoom"><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option></select></div>
+            <div class="preview checker">
+                @if (selected.Length == 0) { <p class="muted">Empty slot. Import a graphic into this ID to fill it.</p> }
+                else if (preview is not null) { <img src="@preview" alt="@($"Preview {Label(kind)}, ID {selected.Id}")" style="width:@(selectedWidth * zoom)px;height:@(selectedHeight * zoom)px" /> }
+                else { <p class="notice error" role="alert">@previewError</p> }
+            </div>
+            <dl class="metadata"><dt>Hexadecimal ID</dt><dd>@($"0x{selected.Id:X4}")</dd><dt>Decimal ID</dt><dd>@selected.Id</dd>
+                <dt>Dimensions</dt><dd>@(preview is null ? "—" : $"{selectedWidth} × {selectedHeight} px")</dd>
+                <dt>Archive offset</dt><dd>@(kind == AssetKind.Gump && Workspace.Gumps?.IsModified(selected.Id) == true ? "Draft" : selected.Offset < 0 ? "—" : selected.Offset.ToString("N0"))</dd><dt>Record</dt><dd>@selected.Length.ToString("N0") bytes</dd></dl>
+            <p class="muted inspector-footnote">Original transparency · nearest-neighbor scaling.</p>
+            @if (selected.Length > 0 && kind is (AssetKind.Item or AssetKind.Gump)) { <a class="configure-link" href="@($"/colors?asset={kind}&id={selected.Id}")">Use in Color studio sample board</a> }
+            @if (kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/manage?id={selected.Id}")">Import or compare this ID</a> }
+            @if (kind is AssetKind.Item or AssetKind.Land)
+            { <a class="configure-link" href="@($"/art/manage?kind={kind}&id={selected.Id}")">Edit this graphic</a><a class="configure-link" href="@($"/tiledata?kind={kind}&id={selected.Id}")">View and edit TileData</a> }
+            @if (selected.Length > 0 && kind == AssetKind.Gump) { <a class="configure-link" href="@($"/gump/composition?id={selected.Id}")">Use in composition</a> }
+        }
+    </aside>
+</div>
+
+@code {
+    // Thumbnails are rendered server-side and sent as data URIs, so the largest size stays bounded.
+    private static readonly int[] PageSizes = [24, 48, 96, 192];
+    private int pageSize = PageSizes[0];
+    private AssetKind kind = AssetKind.Gump;
+    private IReadOnlyList<MulEntry> filtered = [];
+    private readonly List<Tile> tiles = [];
+    private MulEntry? selected;
+    private string query = "", appliedQuery = "";
+    private string? error, preview, previewError;
+    private int page, firstShown, selectedWidth, selectedHeight, zoom = 1;
+    private bool busy;
+    private bool showEmpty = true;
+    private int PageCount => Math.Max(1, (filtered.Count + pageSize - 1) / pageSize);
+    private sealed record Tile(MulEntry Entry, string? Image, int Width, int Height, string? Error);
+    private static string Label(AssetKind value) => value switch { AssetKind.Land => "Land tiles", AssetKind.Item => "Items", _ => "Gump" };
+
+    protected override void OnInitialized()
+    {
+        if (Workspace.IsOpen) Refresh();
+    }
+
+    private async Task Open()
+    {
+        busy = true; error = null;
+        await Task.Yield();
+        try
+        {
+            Workspace.Open(Settings.Directory);
+            if (Workspace.CatalogEntries(kind, showEmpty).Count == 0)
+                kind = Enum.GetValues<AssetKind>().FirstOrDefault(k => Workspace.CatalogEntries(k, showEmpty).Count > 0);
+            query = appliedQuery = "";
+            Refresh();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or InvalidOperationException) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private void ChangeKind(AssetKind value) { kind = value; query = appliedQuery = ""; Refresh(); }
+    private void RefreshSharedWorkspace()
+    {
+        try { Workspace.RefreshShared(); Refresh(); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or InvalidOperationException) { error = ex.Message; }
+    }
+    private void ResetSearch() { query = appliedQuery = ""; Refresh(); }
+    private void Search()
+    {
+        string input = query.Trim();
+        if (input.Length != 0 && !TryId(input, out _)) { error = "Enter a decimal ID or a hexadecimal ID prefixed with 0x."; return; }
+        appliedQuery = input; Refresh();
+    }
+    private static bool TryId(string input, out int id) => input.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+        ? int.TryParse(input[2..], System.Globalization.NumberStyles.AllowHexSpecifier, null, out id) && id >= 0
+        : int.TryParse(input, out id) && id >= 0;
+    private void Refresh()
+    {
+        error = null; page = 0; selected = null; preview = previewError = null;
+        var entries = Workspace.CatalogEntries(kind, showEmpty);
+        filtered = appliedQuery.Length == 0 ? entries : TryId(appliedQuery, out int id) ? entries.Where(e => e.Id == id).ToArray() : [];
+        LoadPage();
+    }
+    private void Previous() { page = Math.Max(0, page - 1); LoadPage(); }
+    private void Next() { page = Math.Min(PageCount - 1, page + 1); LoadPage(); }
+    private void ChangePageSize()
+    {
+        // Keep the first asset that was on screen inside the new page.
+        page = Math.Min(PageCount - 1, firstShown / pageSize);
+        LoadPage();
+    }
+    private void LoadPage()
+    {
+        tiles.Clear();
+        firstShown = page * pageSize;
+        foreach (var entry in filtered.Skip(firstShown).Take(pageSize))
+        {
+            if (entry.Length == 0)
+            {
+                tiles.Add(new Tile(entry, null, 0, 0, null));
+                continue;
+            }
+            try
+            {
+                var image = Workspace.Read(entry);
+                byte[] png = Renderer.RenderThumbnail(image);
+                double ratio = Math.Min(1, Math.Min(112d / image.Width, 96d / image.Height));
+                tiles.Add(new Tile(entry, DataUri(png), Math.Max(1, (int)(image.Width * ratio)), Math.Max(1, (int)(image.Height * ratio)), null));
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or KeyNotFoundException) { tiles.Add(new Tile(entry, null, 0, 0, ex.Message)); }
+        }
+    }
+    private void Select(MulEntry entry)
+    {
+        selected = entry; preview = previewError = null; zoom = 1;
+        if (entry.Length == 0) return;
+        try
+        {
+            var image = Workspace.Read(entry);
+            preview = DataUri(Renderer.RenderPng(image));
+            selectedWidth = image.Width; selectedHeight = image.Height;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or KeyNotFoundException) { previewError = ex.Message; }
+    }
+    private static string DataUri(byte[] png) => "data:image/png;base64," + Convert.ToBase64String(png);
+}

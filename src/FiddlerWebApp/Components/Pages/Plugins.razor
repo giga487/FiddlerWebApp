@@ -7,9 +7,9 @@
 @inject MulWorkspace Workspace
 @inject ClientDirectorySettings Settings
 
-<PageTitle>Plugins · Fiddler</PageTitle>
+<PageTitle>Plugins · @ApplicationInfo.Name</PageTitle>
 <section class="configuration">
-    <div class="section-label">FIDDLER / EXTENSIONS</div><h1>Plugins</h1>
+    <div class="section-label">@ApplicationInfo.ShortName / EXTENSIONS</div><h1>Plugins</h1>
     @if (!Registry.CanManage(Session))
     {
         <p>Plugin management is available to configured administrators.</p>

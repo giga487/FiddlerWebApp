@@ -36,7 +36,7 @@ public partial class GumpManagement : IAsyncDisposable
     protected override void OnInitialized()
     {
         Target = (RequestedId ?? Document?.Entries.FirstOrDefault()?.Id ?? 0).ToString();
-        if (!string.IsNullOrWhiteSpace(Settings.Directory)) OutputParent = Path.Combine(Settings.Directory, "FiddlerExports");
+        if (!string.IsNullOrWhiteSpace(Settings.Directory)) OutputParent = Path.Combine(Settings.Directory, ApplicationInfo.ExportDirectoryName);
         ShowSelection();
     }
     private static bool TryId(string value, out int id)

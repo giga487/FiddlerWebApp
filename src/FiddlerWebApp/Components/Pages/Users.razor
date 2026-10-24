@@ -6,7 +6,7 @@
 @inject ResourceLeaseManager Leases
 @inject ClientDirectorySettings Settings
 
-<PageTitle>Users · Fiddler</PageTitle>
+<PageTitle>Users · @ApplicationInfo.Name</PageTitle>
 <section class="user-page">
     <div class="section-label">USER CONTEXT</div><h1>Your workspace</h1>
     <div class="user-profile"><h2>@Session.User!.Name</h2><p>@Session.User.Provider · @(Session.User.Email ?? "No email stored")</p>

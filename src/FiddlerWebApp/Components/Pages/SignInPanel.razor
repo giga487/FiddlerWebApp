@@ -2,9 +2,9 @@
 @inject SignInFeatures Features
 @inject NavigationManager Navigation
 
-<PageTitle>Sign in · Fiddler</PageTitle>
+<PageTitle>Sign in · @ApplicationInfo.Name</PageTitle>
 <section class="user-page sign-in-panel">
-    <div class="section-label">YOUR WORKSPACE</div><h1>Sign in to Fiddler</h1>
+    <div class="section-label">YOUR WORKSPACE</div><h1>Sign in to @ApplicationInfo.Name</h1>
     <p>Your identity, file settings, drafts and edit leases belong to your user context.</p>
     @if (Navigation.Uri.Contains("authError=", StringComparison.Ordinal))
     { <div class="notice error" role="alert">Sign-in could not be completed. Check the account permissions and Google sign-in configuration, then try again.</div> }

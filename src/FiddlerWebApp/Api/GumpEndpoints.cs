@@ -75,7 +75,7 @@ public static class GumpEndpoints
             .WithDescription("Comparison is cancellable through request cancellation. Only the requested result page is returned.");
         api.MapPost(Root + "/publish", (Guid workspaceId, PublishGumpsRequest request, HttpContext http, ApiWorkspaceRegistry registry) =>
             ApiOperations.Run(http, registry, workspaceId, true, async w => Results.Ok(await w.Assets.SaveSharedAsync(
-                request.OutputDirectory ?? Path.Combine(w.Directory, "FiddlerExports"), http.RequestAborted))))
+                request.OutputDirectory ?? Path.Combine(w.Directory, ApplicationInfo.ExportDirectoryName), http.RequestAborted))))
             .WithSummary("Merge private drafts into a new complete shared MUL/IDX version.");
         api.MapGet(Root + "/art/{kind}", (Guid workspaceId, string kind, int? offset, int? limit, HttpContext http, ApiWorkspaceRegistry registry) =>
             ApiOperations.Read(http, registry, workspaceId, w =>

@@ -1,0 +1,18 @@
+.diagnostic-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 16px 0; }
+.diagnostic-controls label { display: flex; flex-direction: column; gap: 6px; }
+.diagnostic-controls input, .diagnostic-controls select, .diagnostic-controls button { padding: 8px; }
+.diagnostic-controls label:has(input[type=checkbox]) { flex-direction: row; align-items: center; padding: 8px 0; }
+.diagnostic-controls p { flex-basis: 100%; margin: 0; }
+.diagnostic-table { overflow: auto; max-height: 65vh; border: 1px solid #d8e1e5; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { position: sticky; top: 0; background: #eef4f5; text-align: left; z-index: 1; }
+th, td { padding: 10px; border-bottom: 1px solid #d8e1e5; vertical-align: top; }
+.log-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.log-category { max-width: 260px; overflow-wrap: anywhere; }
+.log-message, pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 8px; }
+pre { max-height: 300px; overflow: auto; }
+summary { cursor: pointer; margin: 6px 0; }
+.log-level { display: inline-block; padding: 3px 7px; border-radius: 4px; background: #edf1f3; }
+.warning { background: #fff0cb; color: #724900; }
+.error, .fatal { background: #ffe0e0; color: #8c2020; }
+.information { background: #e0f1ee; color: #156155; }

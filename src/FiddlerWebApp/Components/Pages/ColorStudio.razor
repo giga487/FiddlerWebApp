@@ -6,9 +6,9 @@
 @inject SkiaAssetRenderer Renderer
 @inject ClientResourceWorkspace Resources
 
-<PageTitle>Color studio · Fiddler</PageTitle>
+<PageTitle>Color studio · @ApplicationInfo.Name</PageTitle>
 <div class="color-studio">
-    <div class="color-heading"><div><div class="section-label">FIDDLER / COLORS</div><h1>Color studio</h1>
+    <div class="color-heading"><div><div class="section-label">@ApplicationInfo.ShortName / COLORS</div><h1>Color studio</h1>
         <p>Build a hue and see how it behaves on your own collection of objects.</p></div>
         <a href="/configuration">Configure client folder</a></div>
     @if (error is not null) { <div class="notice error" role="alert">@error</div> }

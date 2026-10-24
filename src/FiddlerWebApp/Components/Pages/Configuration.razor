@@ -7,11 +7,11 @@
 @inject MulWorkspace Workspace
 @inject AnimationWorkspace Animations
 
-<PageTitle>Folder configuration · Fiddler</PageTitle>
+<PageTitle>Folder configuration · @ApplicationInfo.Name</PageTitle>
 <section class="configuration">
     <div class="section-label">WORKSPACE / CONFIGURATION</div>
     <h1>Client data folder</h1>
-    <p class="configuration-intro">Enter a folder on the operating system running Fiddler Web App. The scan checks files in that folder without changing them.</p>
+    <p class="configuration-intro">Enter a folder on the operating system running @ApplicationInfo.Name. The scan checks files in that folder without changing them.</p>
     <div class="configuration-panel">
         <form @onsubmit="Analyze" @onsubmit:preventDefault>
             <label for="client-directory">Absolute path on the server</label>
@@ -83,7 +83,7 @@
         @if (report.OtherFiles.Count > 0)
         {
             <details class="file-group"><summary><strong>Other files in the folder</strong><span>@report.OtherFiles.Count</span></summary>
-                <div class="group-content"><p class="muted">Files outside the standard UOFiddler catalog. They may be custom resources.</p>
+                <div class="group-content"><p class="muted">Files outside the standard client file catalog. They may be custom resources.</p>
                     <ul class="other-files">@foreach (var file in report.OtherFiles.Take(100)) { <li><code>@file</code></li> }</ul>
                     @if (report.OtherFiles.Count > 100) { <p class="muted">Showing the first 100 names.</p> }</div></details>
         }

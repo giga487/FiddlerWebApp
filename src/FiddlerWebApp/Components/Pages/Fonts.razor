@@ -3,9 +3,9 @@
 @using Fiddler.Formats.Fonts
 @using Fiddler.Graphics.Gumps
 
-<PageTitle>Fonts · Fiddler</PageTitle>
+<PageTitle>Fonts · @ApplicationInfo.Name</PageTitle>
 <section class="resource-editor">
-    <div class="section-label">FIDDLER / TYPOGRAPHY</div><h1>Fonts</h1>
+    <div class="section-label">@ApplicationInfo.ShortName / TYPOGRAPHY</div><h1>Fonts</h1>
     <p>Browse ASCII and Unicode fonts, replace glyph images and adjust Unicode offsets. Exports create new client files.</p>
     @if (error is not null) { <p class="notice error" role="alert">@error</p> }
     @if (exported is not null) { <p class="notice success" role="status">Exported: @exported</p> }

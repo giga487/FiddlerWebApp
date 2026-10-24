@@ -8,7 +8,7 @@ public static class FiddlerApi
 {
     public static void MapFiddlerApi(this WebApplication app)
     {
-        var api = app.MapGroup("/api/v1").RequireAuthorization().AddEndpointFilter<ApiGuard>().WithTags("Fiddler API v1");
+        var api = app.MapGroup("/api/v1").RequireAuthorization().AddEndpointFilter<ApiGuard>().WithTags(ApplicationInfo.ApiTag);
         api.MapGet("/me", (HttpContext http) => Results.Ok(http.RequestServices.GetRequiredService<UserSession>().RequireUser()))
             .WithSummary("Get the current API identity.");
         api.MapGet("/antiforgery", (HttpContext http, IAntiforgery antiforgery) =>

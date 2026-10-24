@@ -2,9 +2,9 @@
 @inherits ResourceEditorPage
 @using Fiddler.Formats.Localization
 
-<PageTitle>Cliloc · Fiddler</PageTitle>
+<PageTitle>Cliloc · @ApplicationInfo.Name</PageTitle>
 <section class="resource-editor">
-    <div class="section-label">FIDDLER / LOCALIZATION</div><h1>Cliloc</h1>
+    <div class="section-label">@ApplicationInfo.ShortName / LOCALIZATION</div><h1>Cliloc</h1>
     <p>Find, add, edit and remove localized strings. Drafts belong to this session; exports preserve the original files.</p>
     @if (error is not null) { <p class="notice error" role="alert">@error</p> }
     @if (exported is not null) { <p class="notice success" role="status">Exported: @exported</p> }

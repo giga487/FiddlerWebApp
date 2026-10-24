@@ -18,6 +18,26 @@ namespace Fiddler.Tests;
 public sealed class ResourceEditorRenderingTests
 {
     [Fact]
+    public async Task HomeIntroducesToolsUnderNewBrandAndKeepsCatalogOnItsOwnRoute()
+    {
+        using var files = new ClientResourceEditingTests.Files();
+        using var workspace = new MulWorkspace();
+        string html = await Render(typeof(Home), files.Root, new ClientResourceWorkspace(), workspace);
+        Assert.Contains("UOAssetsService", html);
+        Assert.Contains("UOAS", html);
+        Assert.Contains("aria-label=\"Ultima Online\"", html);
+        Assert.Contains("Pause animation", html);
+        Assert.Contains("href=\"/gump\"", html);
+        Assert.Contains("href=\"/diagnostics\"", html);
+        Assert.Contains("href=\"/api/openapi/v1.json\"", html);
+        Assert.Equal(15, html.Split("class=\"feature-card\"").Length - 1);
+        Assert.DoesNotContain("Fiddler", html);
+        Assert.DoesNotContain("asset-grid", html);
+        Assert.Equal("/", Assert.Single(typeof(Home).GetCustomAttributes(typeof(RouteAttribute), false).Cast<RouteAttribute>()).Template);
+        Assert.Equal("/gump", Assert.Single(typeof(AssetCatalog).GetCustomAttributes(typeof(RouteAttribute), false).Cast<RouteAttribute>()).Template);
+    }
+
+    [Fact]
     public async Task CatalogShowsSelectableEmptyGumpSlotsWithoutDecodeErrors()
     {
         using var files = new ClientResourceEditingTests.Files();
@@ -36,7 +56,7 @@ public sealed class ResourceEditorRenderingTests
         workspace.Open(files.Root);
         Assert.Equal(new[] { 0, 1, 2, 3 }, workspace.CatalogEntries(AssetKind.Gump).Select(entry => entry.Id));
         Assert.Equal(1, Assert.Single(workspace.CatalogEntries(AssetKind.Gump, includeEmpty: false)).Id);
-        string html = await Render(typeof(Home), files.Root, new ClientResourceWorkspace(), workspace);
+        string html = await Render(typeof(AssetCatalog), files.Root, new ClientResourceWorkspace(), workspace);
         Assert.Contains("Show empty slots", html);
         Assert.Contains("Open Gump ID 0x0000", html);
         Assert.Contains("Open Gump ID 0x0003", html);

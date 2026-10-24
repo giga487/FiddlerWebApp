@@ -1,9 +1,15 @@
-# Fiddler Web App
+# UOAssetsService (UOAS)
 
 Ultima Online asset manager: Blazor Web App (.NET 10), Fluent UI Blazor 5 and SkiaSharp rendering.
 One application to run, with reusable readers and graphics in separate projects.
 All project text uses English, including UI labels, messages, accessibility text,
 catalog categories and documentation. The web host uses the en-US culture.
+Product names, API labels, export directory and log file names are centralized
+in `src/FiddlerWebApp/ApplicationInfo.cs`.
+
+The home page (`/`) introduces the available tools below an animated Ultima
+Online ASCII banner on a black background. Its animation can be paused and
+respects reduced-motion preferences. The graphics catalog lives at `/gump`.
 
 ## Architecture
 
@@ -54,6 +60,41 @@ is preserved on disk but is not automatically assigned to every new user.
 The path belongs to the computer running the backend, rather than the browser.
 You can also set `Mul:Directory` in appsettings.json or use `Mul__Directory`.
 Game files remain outside the repository and wwwroot.
+
+## Diagnostics and log files
+
+Open **Diagnostics** (`/diagnostics`) for live server logs, newest first. The page
+shows UTC timestamps, verbosity, category, rendered messages, message templates,
+exceptions and structured properties. Filter by minimum level, category, message
+or exception text, UTC time range, or exception presence. Pause freezes only the
+view; refresh, filters and clearing the view do not delete stored logs or affect
+other sessions. The live sink keeps the most recent 2,000 events by default
+(`Diagnostics:BufferCapacity`, maximum 10,000), with bounded display text per event.
+It starts empty after a restart; file history is not loaded into the page.
+
+In `Required` authentication mode, list allowed account IDs under
+`Diagnostics:AdministratorIds`. In `Open` mode the shared local user can view
+diagnostics. Access is checked on each refresh and verbosity change, including
+after account revocation. Logs are server-wide rather than per-user.
+
+`ILogger<T>` and ASP.NET Core logs flow through Serilog into the console, the
+live sink and JSON Lines files in `App_Data/logs/uoas-YYYYMMDD.jsonl`, outside
+the web root. Files roll daily and at 10 MiB, retaining the latest 14 files.
+`Diagnostics:LogDirectory` accepts an absolute path or a path relative to the
+application content root. Files include full exception and structured event data;
+the live display truncation does not truncate the file sink. The host disposes
+and flushes the logger on shutdown.
+
+Configure capture levels through `Serilog:MinimumLevel:Default` and category
+overrides through `Serilog:MinimumLevel:Override` in appsettings or environment
+variables. The old `Logging:LogLevel` settings are replaced by these Serilog
+settings. The page can temporarily change the global capture minimum from
+Verbose to Fatal; category overrides remain in effect. This change affects all
+sinks and sessions until restart. Display filters only search events already
+captured. HTTP completion logs include method, path, status and elapsed time.
+
+The integration uses [Serilog.AspNetCore](https://github.com/serilog/serilog-aspnetcore)
+and [Serilog.Sinks.File](https://github.com/serilog/serilog-sinks-file).
 
 ## File scan and supported formats
 

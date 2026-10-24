@@ -3,9 +3,9 @@
 @using Fiddler.Graphics.Gumps
 @inject MulWorkspace Workspace
 
-<PageTitle>Edit Item and Land art · Fiddler</PageTitle>
+<PageTitle>Edit Item and Land art · @ApplicationInfo.Name</PageTitle>
 <section class="resource-editor">
-    <div class="section-label">FIDDLER / GRAPHICS</div><h1>Edit Item and Land art</h1>
+    <div class="section-label">@ApplicationInfo.ShortName / GRAPHICS</div><h1>Edit Item and Land art</h1>
     <p>Import a PNG to add or replace an ID. Images are converted to the client format immediately, so the preview shows the exported colors.</p>
     @if (error is not null) { <p class="notice error" role="alert">@error</p> }
     @if (exported is not null) { <p class="notice success" role="status">Exported Art pair: @exported</p> }

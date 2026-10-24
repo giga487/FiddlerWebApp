@@ -1,4 +1,5 @@
 using FiddlerWebApp.Components;
+using FiddlerWebApp;
 using FiddlerWebApp.Services;
 using Fiddler.Graphics;
 using Fiddler.Graphics.Animations;
@@ -10,8 +11,11 @@ using System.Text;
 using System.Text.Json.Serialization;
 using FiddlerWebApp.Api;
 using FiddlerWebApp.Services.Plugins;
+using FiddlerWebApp.Services.Diagnostics;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddDiagnosticsLogging();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -56,6 +60,7 @@ builder.Services.AddScoped(services =>
 });
 
 var app = builder.Build();
+app.UseSerilogRequestLogging();
 
 app.UseRequestLocalization(new RequestLocalizationOptions()
     .SetDefaultCulture("en-US")
@@ -82,7 +87,7 @@ app.Use(async (context, next) =>
     catch (Exception error) when (!context.Response.HasStarted)
     {
         int status = error is BadHttpRequestException bad ? bad.StatusCode : 500;
-        if (status == 500) context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("FiddlerApi").LogError(error, "API request failed");
+        if (status == 500) context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(ApplicationInfo.ApiLogCategory).LogError(error, "API request failed");
         context.Response.Clear();
         context.Response.Headers.CacheControl = "no-store";
         await ApiGuard.Problem(context, status, status == 500 ? "The API request failed. Use the trace ID to inspect server logs." : error.Message).ExecuteAsync(context);

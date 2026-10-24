@@ -1,0 +1,120 @@
+@page "/diagnostics"
+@using FiddlerWebApp.Services.Diagnostics
+@using FiddlerWebApp.Services.Users
+@using Serilog.Events
+@implements IAsyncDisposable
+@inject DiagnosticLogStore Logs
+@inject DiagnosticLogControl Control
+@inject DiagnosticsAccess Access
+@inject UserSession Session
+@inject ILogger<Diagnostics> Logger
+
+<PageTitle>Diagnostics · @ApplicationInfo.Name</PageTitle>
+<section class="configuration diagnostics">
+    <div class="section-label">@ApplicationInfo.ShortName / OPERATIONS</div><h1>Diagnostics</h1>
+    @if (!Access.CanView(Session))
+    {
+        <p>Diagnostics is available to configured administrators.</p>
+        <p>Your account ID: <code>@Session.User?.Id</code></p>
+    }
+    else
+    {
+        <p>Live application logs · newest first · up to @Logs.Capacity.ToString("N0") events retained in memory.</p>
+        <div class="diagnostic-controls">
+            <label>Capture verbosity (all users)
+                <select value="@Control.LevelSwitch.MinimumLevel" @onchange="ChangeCaptureLevel">
+                    @foreach (var level in Enum.GetValues<LogEventLevel>()) { <option value="@level">@level</option> }
+                </select>
+            </label>
+            <p class="muted">Category overrides still apply. Changes last until restart. File logging continues while this view is paused or filtered.</p>
+        </div>
+        <form class="diagnostic-controls" @onsubmit="Refresh" @onsubmit:preventDefault>
+            <label>Minimum level<select @bind="minimum" @bind:after="Refresh">
+                @foreach (var level in Enum.GetValues<LogEventLevel>()) { <option value="@level">@level</option> }
+            </select></label>
+            <label>Category<input @bind="category" @bind:event="oninput" @bind:after="Refresh" placeholder="Category contains…" /></label>
+            <label>Message or exception<input @bind="message" @bind:event="oninput" @bind:after="Refresh" placeholder="Search logs…" /></label>
+            <label>From (UTC)<input type="datetime-local" @bind="from" @bind:after="Refresh" /></label>
+            <label>Until (UTC)<input type="datetime-local" @bind="until" @bind:after="Refresh" /></label>
+            <label>Visible events<select @bind="limit" @bind:after="Refresh"><option>100</option><option>200</option><option>500</option><option>1000</option></select></label>
+            <label><input type="checkbox" @bind="exceptionsOnly" @bind:after="Refresh" /> Exceptions only</label>
+            <button type="submit">Refresh</button>
+            <button type="button" @onclick="TogglePause">@(paused ? "Resume live view" : "Pause live view")</button>
+            <button type="button" @onclick="ClearView">Clear this view</button>
+            <button type="button" @onclick="ResetFilters">Reset filters</button>
+        </form>
+        <p role="status">@(paused ? "Paused" : "Live · refreshes every second") · @rows.Count visible events · timestamps in UTC.</p>
+        <div class="diagnostic-table">
+            <table>
+                <thead><tr><th>Time (UTC)</th><th>Level</th><th>Category</th><th>Message and details</th></tr></thead>
+                <tbody>
+                    @foreach (var entry in rows)
+                    {
+                        <tr @key="entry.Sequence">
+                            <td class="log-time">@entry.Timestamp.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss.fff")</td>
+                            <td><span class="log-level @entry.Level.ToString().ToLowerInvariant()">@entry.Level</span></td>
+                            <td class="log-category">@entry.Category</td>
+                            <td><div class="log-message">@entry.Message</div>
+                                <details><summary>Details</summary><strong>Message template</strong><pre>@entry.MessageTemplate</pre>
+                                    @if (entry.Exception is not null) { <strong>Exception</strong><pre>@entry.Exception</pre> }
+                                    <strong>Properties</strong><pre>@entry.Properties</pre>
+                                </details>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (rows.Count == 0) { <p>No captured events match these filters. Lowering capture verbosity does not recover earlier events.</p> }
+    }
+</section>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private Task? updates;
+    private bool paused;
+    private long afterSequence;
+    private int limit = 200;
+    private LogEventLevel minimum = LogEventLevel.Verbose;
+    private string category = "", message = "";
+    private bool exceptionsOnly;
+    private DateTime? from, until;
+    private IReadOnlyList<DiagnosticLogEntry> rows = [];
+
+    protected override void OnInitialized() => Refresh();
+    protected override void OnAfterRender(bool firstRender)
+    { if (firstRender && Access.CanView(Session)) updates = UpdateLoop(); }
+
+    private static DateTimeOffset? Utc(DateTime? value) => value is { } date ? new DateTimeOffset(DateTime.SpecifyKind(date, DateTimeKind.Utc)) : null;
+    private void Refresh()
+    {
+        rows = Access.CanView(Session) ? Logs.Query(new(minimum, category, message, exceptionsOnly, Utc(from), Utc(until), afterSequence), limit) : [];
+    }
+    private async Task UpdateLoop()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(lifetime.Token))
+                await InvokeAsync(() =>
+                {
+                    if (!Access.CanView(Session)) { rows = []; StateHasChanged(); return; }
+                    if (!paused) { Refresh(); StateHasChanged(); }
+                });
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+    }
+    private void ChangeCaptureLevel(ChangeEventArgs args)
+    {
+        if (!Access.CanView(Session) || !Enum.TryParse<LogEventLevel>(args.Value?.ToString(), out var level) || !Enum.IsDefined(level)) return;
+        Control.LevelSwitch.MinimumLevel = level;
+        Logger.LogWarning("Diagnostics capture verbosity changed to {MinimumLevel} by {UserId}", level, Session.User!.Id);
+        Refresh();
+    }
+    private void TogglePause() { paused = !paused; if (!paused) Refresh(); }
+    private void ClearView() { afterSequence = Logs.LatestSequence; Refresh(); }
+    private void ResetFilters()
+    { minimum = LogEventLevel.Verbose; category = message = ""; exceptionsOnly = false; from = until = null; afterSequence = 0; Refresh(); }
+    public async ValueTask DisposeAsync()
+    { lifetime.Cancel(); if (updates is not null) await updates; lifetime.Dispose(); }
+}
