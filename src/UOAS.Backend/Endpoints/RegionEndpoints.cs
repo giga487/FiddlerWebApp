@@ -9,16 +9,15 @@ public static class RegionEndpoints
     private static RegionWorkspace Workspace(HttpContext http, Guid id) => CollaborationGuard.Session(http).RegionWorkspaces.GetValueOrDefault(id) ?? throw new KeyNotFoundException("Region catalog not found in this session.");
     public static void Map(RouteGroupBuilder api)
     {
-        api.MapGet("/region-sources", (IConfiguration configuration) => configuration.GetSection("Regions:Sources").GetChildren().Where(source => !string.IsNullOrWhiteSpace(source["File"])).Select(source => new RegionSource(source.Key, source["Name"] ?? source.Key)));
-        api.MapPost("/regions", (OpenRegionsRequest request, HttpContext http, IConfiguration configuration, IWebHostEnvironment environment, RegionStore store) =>
+        api.MapGet("/region-sources", (UOAS.Application.Storage.WorkspaceSettingsStore settings) => settings.Read().RegionSources.Select(source => new RegionSource(source.Id, source.Name)));
+        api.MapPost("/regions", (OpenRegionsRequest request, HttpContext http, UOAS.Application.Storage.WorkspaceSettingsStore settings, RegionStore store) =>
         {
             if (string.IsNullOrEmpty(request.Source) || request.Source.Length > 80 || request.Source.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_'))) throw new ArgumentException("Select a configured region source.");
-            var section = configuration.GetSection("Regions:Sources:" + request.Source);
-            string file = section["File"] ?? throw new KeyNotFoundException("Region source not configured.");
-            if (string.IsNullOrWhiteSpace(file)) throw new KeyNotFoundException("Configure the region source file on the backend.");
+            var source = settings.Region(request.Source);
+            string file = settings.RegionFile(request.Source);
             var session = CollaborationGuard.Session(http);
             if (session.RegionWorkspaces.Count >= 4) throw new InvalidOperationException("Close a region catalog before opening another.");
-            var workspace = store.Open(Path.GetFullPath(file, environment.ContentRootPath), section["Name"] ?? request.Source, session.Id, session.Name, section.GetSection("Maps").Get<string[]>() ?? [], section.GetSection("Types").Get<string[]>() ?? []);
+            var workspace = store.Open(file, source.Name, session.Id, session.Name, source.Maps.ToArray(), source.Types.ToArray());
             session.RegionWorkspaces.Add(workspace.Id, workspace); return workspace.Info();
         });
         const string root = "/regions/{catalogId:guid}";
@@ -33,7 +32,7 @@ public static class RegionEndpoints
         api.MapDelete(root + "/locks/{id:int}", (Guid catalogId, int id, bool? discard, HttpContext http) => { Workspace(http, catalogId).Release(id, discard == true); return Results.NoContent(); });
         api.MapPost(root + "/refresh", (Guid catalogId, HttpContext http) => { var workspace = Workspace(http, catalogId); workspace.Refresh(); return workspace.Info(); });
         api.MapPost(root + "/heartbeat", (Guid catalogId, HttpContext http) => { var workspace = Workspace(http, catalogId); workspace.Heartbeat(); return workspace.Info(); });
-        api.MapPost(root + "/publish", (Guid catalogId, HttpContext http, IConfiguration configuration, IWebHostEnvironment environment) => Workspace(http, catalogId).Publish(Path.GetFullPath(configuration["Assets:ExportDirectory"] ?? "App_Data/exports", environment.ContentRootPath)));
+        api.MapPost(root + "/publish", (Guid catalogId, HttpContext http, UOAS.Application.Storage.WorkspaceSettingsStore settings) => Workspace(http, catalogId).Publish(settings.ExportDirectory()));
         api.MapGet(root + "/export", (Guid catalogId, HttpContext http) => Workspace(http, catalogId).Export());
         api.MapDelete(root, (Guid catalogId, bool? discard, HttpContext http) =>
         {

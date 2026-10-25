@@ -6,7 +6,7 @@
 <section class="tool-page" aria-busy="@ViewModel.Busy.ToString().ToLowerInvariant()"><div class="eyebrow">@ApplicationInfo.ShortName / SERVER DEFINITIONS</div><h1>Server regions</h1>
 <p>Edit static ModernUO region definitions. The preview shows region boundaries in server coordinates.</p>
 <div class="tool-fields"><CommandButton Command="ViewModel.SourcesCommand">Find region sources</CommandButton><label>Server source<select @bind="ViewModel.Source" disabled="@(ViewModel.Catalog is not null)"><option value="">Select a source</option>@foreach (var source in ViewModel.Sources) { <option value="@source.Id">@source.Name</option> }</select></label><CommandButton Command="ViewModel.OpenCommand" CssClass="primary">Open regions</CommandButton><CommandButton Command="ViewModel.CloseCommand">Close catalog</CommandButton></div>
-@if (ViewModel.Sources.Count == 0) { <p class="muted">The backend operator configures Regions:Sources with the server's Data/regions.json path.</p> }
+@if (ViewModel.Sources.Count == 0) { <p class="muted">Choose a regions.json source in Configuration. The storage root is configured on the backend.</p> }
 @if (ViewModel.Error is not null) { <p class="notice error" role="alert">@ViewModel.Error</p> }
 @if (ViewModel.Notice is not null) { <p class="notice success" role="status">@ViewModel.Notice</p> }
 @if (ViewModel.Catalog is { } catalog)

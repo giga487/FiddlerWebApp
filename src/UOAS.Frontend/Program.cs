@@ -18,4 +18,5 @@ builder.Services.AddScoped<AnimationViewModel>();
 builder.Services.AddScoped<ColorBoardViewModel>();
 builder.Services.AddScoped<PluginsViewModel>();
 builder.Services.AddScoped<RegionsViewModel>();
+builder.Services.AddScoped<ConfigurationViewModel>();
 await builder.Build().RunAsync();

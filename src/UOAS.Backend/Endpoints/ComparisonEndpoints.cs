@@ -8,10 +8,10 @@ public static class ComparisonEndpoints
     public static void Map(RouteGroupBuilder api)
     {
         const string root = "/workspaces/{workspaceId:guid}/comparison";
-        api.MapPost(root, async (Guid workspaceId, CompareRequest request, HttpContext http, IConfiguration configuration) =>
+        api.MapPost(root, async (Guid workspaceId, CompareRequest request, HttpContext http, UOAS.Application.Storage.WorkspaceSettingsStore settings) =>
         {
             var workspace = CollaborationEndpoints.Workspace(http, workspaceId);
-            await workspace.CompareGumps(LibraryConfiguration.Directory(configuration, request.Library), http.RequestAborted);
+            await workspace.CompareGumps(LibraryConfiguration.Directory(settings, request.Library), http.RequestAborted);
             return Results.Ok(workspace.Comparison(0, 24, true));
         });
         api.MapGet(root, (Guid workspaceId, int? offset, int? limit, bool? differencesOnly, HttpContext http) =>

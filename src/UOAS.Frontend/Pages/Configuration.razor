@@ -1,7 +1,29 @@
 @page "/configuration"
 @implements IDisposable
 @inject ToolViewModel ViewModel
-<PageTitle>File inventory · @ApplicationInfo.Name</PageTitle>
+@inject ConfigurationViewModel Settings
+<PageTitle>Configuration · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page" aria-busy="@Settings.Busy.ToString().ToLowerInvariant()"><div class="eyebrow">@ApplicationInfo.ShortName / WORKSPACE SETTINGS</div><h1>Configuration</h1>
+<p>Browse the backend storage root and choose asset libraries, region files and an export folder. All paths below are relative to /.</p>
+@if (Settings.Error is not null) { <p class="notice error" role="alert">@Settings.Error</p> }
+@if (Settings.Notice is not null) { <p class="notice success" role="status">@Settings.Notice</p> }
+<div class="toolbar"><button @onclick="Settings.LoadAsync" disabled="@Settings.Busy">Reload configuration</button><button @onclick="Settings.SaveAsync" class="primary" disabled="@(Settings.Busy || !Settings.RootConfigured)">Save configuration</button><span>Revision @Settings.Revision</span></div>
+@if (!Settings.RootConfigured) { <p class="notice">Configure Storage:RootDirectory in backend appsettings to enable browsing. The root can only be changed on the server.</p> }
+else
+{
+<div class="tool-columns"><div><h2>Backend folders</h2><p class="storage-breadcrumb">/@Settings.CurrentPath</p><div class="toolbar"><button @onclick='() => Settings.NavigateAsync("")' disabled="@Settings.Busy">Root /</button><button @onclick='() => Settings.NavigateAsync(Settings.Folder?.Parent ?? "")' disabled="@(Settings.Busy || Settings.Folder?.Parent is null)">Parent folder</button></div>
+@if (Settings.Folder is { } folder)
+{
+<div class="tool-output storage-browser"><table><thead><tr><th>Name</th><th>Kind</th><th>Bytes</th><th>Choose</th></tr></thead><tbody>@foreach (var entry in folder.Entries) { <tr><td>@if (entry.Directory && !entry.Blocked) { <button @onclick="() => Settings.NavigateAsync(entry.Path)" disabled="@Settings.Busy">@entry.Name/</button> } else { @entry.Name }</td><td>@(entry.Blocked ? "Link · blocked" : entry.Directory ? "Folder" : "File")</td><td>@entry.Bytes</td><td>@if (!entry.Directory && !entry.Blocked && entry.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) { <button @onclick="() => Settings.AddRegions(entry.Path)" disabled="@Settings.Busy">Use region file</button> }</td></tr> }</tbody></table>@if (folder.Total == 0) { <p>This folder is empty.</p> }</div>
+<div class="toolbar"><button @onclick="Settings.PreviousAsync" disabled="@(Settings.Busy || Settings.Page == 0)">Previous folder page</button><span>@(Settings.Page + 1) / @Settings.PageCount</span><button @onclick="Settings.NextAsync" disabled="@(Settings.Busy || Settings.Page + 1 >= Settings.PageCount)">Next folder page</button></div>
+<div class="toolbar"><button @onclick="Settings.AddLibrary" disabled="@Settings.Busy">Use folder for assets</button><button @onclick="Settings.UseFolderForRegions" disabled="@Settings.Busy">Use folder for regions.json</button><button @onclick="Settings.UseExportFolder" disabled="@Settings.Busy">Use folder for exports</button></div>
+}
+</div><div><fieldset disabled="@Settings.Busy"><legend>Sources</legend><h2>Asset libraries</h2>
+@foreach (var library in Settings.Libraries) { <div class="settings-source" @key="library"><label>ID<input @bind="library.Id" /></label><label>Name<input @bind="library.Name" /></label><label>Relative folder<input @bind="library.Directory" placeholder="Clients/Classic" /></label><button @onclick="() => Settings.Remove(library)">Remove library</button></div> }
+<h2>Server regions</h2>@foreach (var region in Settings.Regions) { <div class="settings-source" @key="region"><label>ID<input @bind="region.Id" /></label><label>Name<input @bind="region.Name" /></label><label>Relative JSON file<input @bind="region.File" placeholder="ServerData/regions.json" /></label><button @onclick="() => Settings.Remove(region)">Remove region source</button></div> }
+<h2>Exports</h2><label>Relative output folder<input @bind="Settings.ExportDirectory" placeholder="Exports" /></label></fieldset><p class="muted">Selecting folders changes this form. Save configuration to apply it. Links cannot be traversed. The browser cannot move, delete or download arbitrary backend files.</p></div></div>
+}
+</section>
 <section class="tool-page"><div class="eyebrow">@ApplicationInfo.ShortName / LIBRARY</div><h1>File inventory</h1><p>Choose a configured library in the workspace bar. The backend reads the library's index files and reports available formats.</p><CommandButton Command="ViewModel.ScanCommand">Scan this library</CommandButton>
     @if (ViewModel.Error is not null) { <p class="notice error">@ViewModel.Error</p> }
     @if (ViewModel.Output is not null) { <div class="tool-output"><table><thead><tr><th>Group</th><th>File</th><th>Status</th><th>Bytes</th><th>Details</th></tr></thead><tbody>@foreach (var file in ViewModel.Inventory) { <tr><td>@file.Group</td><td>@file.Name</td><td>@Statuses[file.Status]</td><td>@file.Size</td><td>@file.Detail</td></tr> }</tbody></table></div><details><summary>Full inventory report</summary><pre>@ViewModel.Output</pre></details> }
@@ -9,7 +31,7 @@
 </section>
 @code {
     private static readonly string[] Statuses = ["Present", "Missing", "Alternative", "Empty", "Unreadable", "Ambiguous", "Invalid"];
-    protected override void OnInitialized() => ViewModel.PropertyChanged += Updated;
+    protected override async Task OnInitializedAsync() { ViewModel.PropertyChanged += Updated; Settings.PropertyChanged += Updated; await Settings.LoadAsync(); }
     private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
-    public void Dispose() => ViewModel.PropertyChanged -= Updated;
+    public void Dispose() { ViewModel.PropertyChanged -= Updated; Settings.PropertyChanged -= Updated; }
 }

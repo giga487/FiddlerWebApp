@@ -10,7 +10,7 @@ Open **UOAS.sln**. Install .NET SDK 10 and the `wasm-tools` workload, then run
 these commands in separate terminals from this repository:
 
 ```powershell
-dotnet run --project src/UOAS.Backend -- --Assets:Libraries:default:Directory="D:\Data\Client"
+dotnet run --project src/UOAS.Backend -- --Storage:RootDirectory="D:\UOAssets"
 dotnet run --project src/UOAS.Frontend
 ```
 
@@ -51,10 +51,15 @@ See [split architecture](docs/split-architecture.md) and
 
 ## Libraries and output
 
-Configure backend libraries under `Assets:Libraries:<id>:Directory` and
-`Assets:Libraries:<id>:Name`. Browsers select a library ID rather than arbitrary
-server paths. Original files remain read-only. New published versions are
-written beneath backend `Assets:ExportDirectory` (default `App_Data/exports`).
+Configure one existing physical folder using backend `Storage:RootDirectory`.
+The Configuration page browses that folder as `/`, selects asset directories and
+region JSON files, and saves relative paths and an export directory. Sources and
+exports must stay inside the root; symbolic links and junctions are blocked.
+The root itself is only configurable in appsettings, environment or startup
+arguments. Restart the backend when changing it. See [storage configuration](docs/storage-configuration.md).
+
+Original files remain read-only. New published versions are written beneath
+the selected export directory (default `Exports` inside the root).
 Shared version manifests and files under backend `App_Data` must be backed up
 together. Paths belong to the backend computer, not the browser computer.
 
@@ -103,6 +108,8 @@ banner. Animation can be paused and respects reduced-motion preferences.
   Hues include gradients, palette undo/copy and a local Skia sample board with
   full, gray-only and TileData-driven automatic coloring.
 - **Inventory**: available/missing client files and basic index checks.
+- **Configuration**: backend folder browser confined to one root, editable source
+  lists and export path, persistent revisions and conflict detection.
 - **Diagnostics**: filtered backend logs, exceptions, structured properties and
   UTC time ranges, view clearing and runtime capture verbosity, alongside console
   and rotating JSON Lines files.

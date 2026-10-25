@@ -158,6 +158,7 @@ public sealed class LockIntegrationTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseContentRoot(root);
+            builder.UseSetting("Storage:RootDirectory", root);
             builder.UseSetting("Assets:Libraries:default:Directory", Data);
             builder.UseSetting("Assets:Libraries:alias:Directory", Path.Combine(Data, "."));
             builder.UseSetting("Assets:ExportDirectory", Path.Combine(root, "exports"));

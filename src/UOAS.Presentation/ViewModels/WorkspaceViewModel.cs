@@ -95,6 +95,11 @@ public sealed class WorkspaceViewModel : ObservableViewModel, IAsyncDisposable
         SessionStarted?.Invoke();
         polling ??= Poll();
     }
+    public Task ReloadLibrariesAsync() => Run(async () =>
+    {
+        Libraries = await api.GetAsync<AssetLibrary[]>("api/libraries", lifetime.Token);
+        if (!Libraries.Any(library => library.Id == SelectedLibrary)) SelectedLibrary = Libraries.FirstOrDefault()?.Id ?? "";
+    });
     private async Task CloseSession()
     {
         try { await api.EndSessionAsync(lifetime.Token); }

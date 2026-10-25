@@ -26,7 +26,19 @@ objects and does not change terrain, statics or whole-map assets.
 
 ## Configuration
 
+Configure Storage:RootDirectory first. Region sources selected in the Configuration
+page are saved as relative JSON paths inside that root. Appsettings source entries
+below are initial seeds only; saved application settings take precedence. Existing
+absolute seeds are accepted only when contained by the root. See
+[storage configuration](storage-configuration.md).
+
 Configure explicit source IDs on the backend; browsers cannot supply paths:
+
+Machine-specific paths can be saved in `src/UOAS.Backend/appsettings.Local.json`,
+which is ignored by Git and loaded automatically. Environment variables and
+command-line options override that local configuration. Set `Directory` to the
+server's Data folder to read its `regions.json`, or set `File` to a specific JSON
+file. An explicit nonempty File takes precedence over Directory.
 
 ```json
 {
@@ -34,7 +46,7 @@ Configure explicit source IDs on the backend; browsers cannot supply paths:
     "Sources": {
       "default": {
         "Name": "Server regions",
-        "File": "D:/Server/Data/regions.json",
+        "File": "ServerData/regions.json",
         "Maps": ["Sea"],
         "Types": []
       }
@@ -46,12 +58,13 @@ Configure explicit source IDs on the backend; browsers cannot supply paths:
 Maps found in the source are offered automatically. Maps adds valid server maps
 not already represented in that file; Types adds externally registered custom
 region types. The built-in type choices match the local server registration list.
-Empty `[]` sources are supported. Restart the backend after changing source
-configuration. Export folders use Assets:ExportDirectory.
+Empty `[]` sources are supported. Sources saved in Configuration are available
+without a backend restart. Existing workspaces retain their original source.
+Exports use the relative directory saved in application settings.
 
-For the server checkout in this workspace, point File to its
-`PrivateSeahatsServer/Distribution/Data/regions.json`. Use the deployed server's
-`Data/regions.json` when that is the intended source.
+For a server checkout outside the storage root, copy its regions.json into the
+root before selecting it. The local setup uses ServerData/regions.json under
+backend App_Data/workspace; the original server file is preserved.
 
 ## Editing and collaboration
 

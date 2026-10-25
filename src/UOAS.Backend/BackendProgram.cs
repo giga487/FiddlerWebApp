@@ -13,10 +13,14 @@ public partial class BackendProgram
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true)
+            .AddEnvironmentVariables().AddCommandLine(args);
         builder.AddDiagnosticsLogging();
         builder.Services.AddProblemDetails();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<ResourceLeaseManager>();
+        builder.Services.AddSingleton(new UOAS.Application.Storage.StorageRoot(builder.Configuration["Storage:RootDirectory"], builder.Environment.ContentRootPath));
+        builder.Services.AddSingleton(services => new UOAS.Application.Storage.WorkspaceSettingsStore(services.GetRequiredService<UOAS.Application.Storage.StorageRoot>(), builder.Configuration, Path.Combine(builder.Environment.ContentRootPath, "App_Data", "workspace-settings")));
         builder.Services.AddSingleton(services => new UOAS.Application.Regions.RegionStore(Path.Combine(builder.Environment.ContentRootPath, "App_Data", "regions"), services.GetRequiredService<ResourceLeaseManager>()));
         builder.Services.AddSingleton<SkiaAssetRenderer>();
         builder.Services.AddSingleton<Fiddler.Graphics.World.IsometricSceneRenderer>();

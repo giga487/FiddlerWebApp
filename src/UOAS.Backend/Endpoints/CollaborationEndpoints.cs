@@ -20,12 +20,11 @@ public static class CollaborationEndpoints
         var api = app.MapGroup("/api").AddEndpointFilter<CollaborationGuard>();
         api.MapGet("/session", (HttpContext http) => Results.Ok(CollaborationGuard.Session(http).Info()));
         api.MapDelete("/session", (HttpContext http, CollaborationSessions sessions) => { sessions.Close(CollaborationGuard.Session(http)); return Results.NoContent(); });
-        api.MapGet("/libraries", (IConfiguration configuration) => configuration.GetSection("Assets:Libraries").GetChildren().Where(library => !string.IsNullOrWhiteSpace(library["Directory"]))
-            .Select(library => new AssetLibrary(library.Key, library["Name"] ?? library.Key)));
+        api.MapGet("/libraries", (UOAS.Application.Storage.WorkspaceSettingsStore settings) => settings.Read().Libraries.Select(library => new AssetLibrary(library.Id, library.Name)));
         api.MapGet("/workspaces", (HttpContext http) => CollaborationGuard.Session(http).Workspaces.Values.Select(workspace => workspace.Info()));
-        api.MapPost("/workspaces", (OpenWorkspaceRequest request, HttpContext http, CollaborationSessions sessions, IConfiguration configuration) =>
+        api.MapPost("/workspaces", (OpenWorkspaceRequest request, HttpContext http, CollaborationSessions sessions, UOAS.Application.Storage.WorkspaceSettingsStore settings) =>
         {
-            string directory = LibraryConfiguration.Directory(configuration, request.Library);
+            string directory = LibraryConfiguration.Directory(settings, request.Library);
             return Results.Ok(sessions.Open(CollaborationGuard.Session(http), directory).Info());
         });
         api.MapGet("/workspaces/{workspaceId:guid}", (Guid workspaceId, HttpContext http) => Workspace(http, workspaceId).Info());
@@ -62,9 +61,9 @@ public static class CollaborationEndpoints
             var workspace = Workspace(http, workspaceId); workspace.Put(kind, id, memory.ToArray()); return Results.Ok(workspace.Details(kind, id));
         });
         api.MapDelete("/workspaces/{workspaceId:guid}/assets/{kind}/{id:int}", (Guid workspaceId, ResourceKind kind, int id, HttpContext http) => { Workspace(http, workspaceId).Remove(kind, id); return Results.NoContent(); });
-        api.MapPost("/workspaces/{workspaceId:guid}/publish/{kind}", async (Guid workspaceId, ResourceKind kind, HttpContext http, IConfiguration configuration, IWebHostEnvironment environment) =>
+        api.MapPost("/workspaces/{workspaceId:guid}/publish/{kind}", async (Guid workspaceId, ResourceKind kind, HttpContext http, UOAS.Application.Storage.WorkspaceSettingsStore settings) =>
         {
-            string output = Path.GetFullPath(configuration["Assets:ExportDirectory"] ?? "App_Data/exports", environment.ContentRootPath);
+            string output = settings.ExportDirectory();
             return Results.Ok(await Workspace(http, workspaceId).Publish(kind, output, http.RequestAborted));
         });
         ToolEndpoints.Map(api);
@@ -72,5 +71,6 @@ public static class CollaborationEndpoints
         ComparisonEndpoints.Map(api);
         DocumentEndpoints.Map(api);
         RegionEndpoints.Map(api);
+        StorageEndpoints.Map(api);
     }
 }

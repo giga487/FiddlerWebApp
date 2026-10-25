@@ -31,9 +31,9 @@ public static class DocumentEndpoints
         { Document(http, workspaceId, documentId).Release(id, discard == true); return Results.NoContent(); });
         api.MapPost(root + "/{documentId:guid}/refresh", (Guid workspaceId, Guid documentId, HttpContext http) =>
         { var document = Document(http, workspaceId, documentId); document.Refresh(); return Results.Ok(document.Info()); });
-        api.MapPost(root + "/{documentId:guid}/publish", async (Guid workspaceId, Guid documentId, HttpContext http, IConfiguration configuration, IWebHostEnvironment environment) =>
+        api.MapPost(root + "/{documentId:guid}/publish", async (Guid workspaceId, Guid documentId, HttpContext http, UOAS.Application.Storage.WorkspaceSettingsStore settings) =>
         {
-            string output = Path.GetFullPath(configuration["Assets:ExportDirectory"] ?? "App_Data/exports", environment.ContentRootPath);
+            string output = settings.ExportDirectory();
             return Results.Ok(await Document(http, workspaceId, documentId).Publish(output, http.RequestAborted));
         });
     }

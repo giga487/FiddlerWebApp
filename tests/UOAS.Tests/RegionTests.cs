@@ -84,6 +84,21 @@ public sealed class RegionTests
         Assert.Null((await alice.GetFromJsonAsync<RegionRecord>(a + "/records/0"))!.Summary.Lock);
     }
     [Fact]
+    public async Task ConfiguredDirectoryDiscoversRegionsJsonWithoutAFileSetting()
+    {
+        await using var host = new LockIntegrationTests.Host();
+        using var folderHost = host.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Regions:Sources:default:File", "");
+            builder.UseSetting("Regions:Sources:default:Directory", Path.GetDirectoryName(host.RegionFile));
+        });
+        using var client = folderHost.CreateClient();
+        using var started = await client.PostAsJsonAsync("/api/sessions", new StartSessionRequest("Designer")); started.EnsureSuccessStatusCode();
+        client.DefaultRequestHeaders.Add("X-UOAS-Session", (await started.Content.ReadFromJsonAsync<CollaborationSession>())!.Token);
+        Assert.Contains((await client.GetFromJsonAsync<RegionSource[]>("/api/region-sources"))!, source => source.Id == "default");
+        string root = await Open(client); Assert.Equal(3, (await client.GetFromJsonAsync<RegionCatalog>(root))!.Count);
+    }
+    [Fact]
     public async Task SourcesAreConfiguredAndCatalogsBelongToTheirSession()
     {
         await using var host = new LockIntegrationTests.Host(); using var alice = await host.Client("Alice"); using var bob = await host.Client("Bob"); string root = await Open(alice);

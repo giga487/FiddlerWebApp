@@ -20,7 +20,10 @@ or role policies in this host.
 
 `GET /api/libraries` lists configured library IDs and display names. Open one
 with `POST /api/workspaces` and `{"library":"default"}`. Source and export
-paths are backend configuration, never browser-supplied paths.
+paths come from application settings and are resolved within Storage:RootDirectory.
+The browser can save only root-relative paths through `/api/configuration`.
+`/api/storage/entries` lists directories inside that root; see
+[storage configuration](storage-configuration.md).
 
 Workspace routes under `/api/workspaces/{workspaceId}` include:
 

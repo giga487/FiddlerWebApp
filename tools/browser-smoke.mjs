@@ -128,7 +128,7 @@ try {
   if(!await alice.evaluate('Array.from(document.querySelectorAll("button")).find(b=>b.textContent.trim()==="Activate")?.disabled')) throw new Error('Unapproved plugin activation was enabled');
   await alice.evaluate(click('Remove package'));
   await alice.wait('!document.querySelector(".package-hash")','quarantined package removal');
-  await navigate('/configuration','File inventory');
+  await navigate('/configuration','Configuration');
   await alice.evaluate(click('Scan this library'));
   await alice.wait('document.querySelectorAll("tbody tr").length>0','inventory table');
   await navigate('/diagnostics','Diagnostics');
