@@ -16,10 +16,11 @@ public sealed class RegionsViewModel : ObservableViewModel, IAsyncDisposable
     public RegionsViewModel(IAssetApi api, WorkspaceViewModel session)
     {
         this.api = api; this.session = session; session.PropertyChanged += SessionChanged;
+        Atlas = new(api); Atlas.PropertyChanged += AtlasChanged;
         SourcesCommand = Command(async () => { Sources = await api.GetAsync<RegionSource[]>("api/region-sources"); Source = Sources.FirstOrDefault()?.Id ?? ""; });
         OpenCommand = Command(async () => { Catalog = await api.PostAsync<RegionCatalog>("api/regions", new OpenRegionsRequest(Source)); Page = 0; await List(); polling ??= Poll(); }, () => Catalog is null && Source.Length > 0);
         CloseCommand = Command(async () => { await api.DeleteAsync(Path); Reset(); }, () => Catalog is not null && Catalog.DraftCount == 0);
-        SearchCommand = Command(async () => { Page = 0; await List(); }, () => Catalog is not null);
+        SearchCommand = Command(async () => { FocusedId = null; Page = 0; await List(); }, () => Catalog is not null);
         PreviousCommand = Command(async () => { Page--; await List(); }, () => Catalog is not null && Page > 0);
         NextCommand = Command(async () => { Page++; await List(); }, () => Catalog is not null && Page + 1 < PageCount);
         NewCommand = Command(async () => { Load(await api.PostAsync<RegionRecord>(Path + "/records")); await List(); }, () => Catalog is not null);
@@ -48,6 +49,18 @@ public sealed class RegionsViewModel : ObservableViewModel, IAsyncDisposable
     public AsyncCommand RefreshCommand { get; }
     public AsyncCommand PublishCommand { get; }
     public AsyncCommand ExportCommand { get; }
+    public AtlasViewModel Atlas { get; }
+    public int? FocusedId { get; private set; }
+    public bool CanEditAtlas => OwnsSelection && !Busy && Atlas.Current?.Name == Map;
+    public IReadOnlyList<RegionOverlay> AtlasOverlays
+    {
+        get
+        {
+            var rows = Atlas.Overlays.Where(row => row.Summary.Id != Selected?.Summary.Id).ToList();
+            if (Selected is { } record && !record.Summary.Deleted && Atlas.Current?.Name == Map) rows.Add(new(record.Summary with { Map = Map, Name = Name }, Area));
+            return rows;
+        }
+    }
     public IReadOnlyList<RegionSource> Sources { get; private set; } = [];
     public string Source { get; set; } = "";
     public RegionCatalog? Catalog { get; private set; }
@@ -84,15 +97,28 @@ public sealed class RegionsViewModel : ObservableViewModel, IAsyncDisposable
     }
     private async Task List()
     {
-        var result = await api.GetAsync<RegionPage>($"{Path}/records?offset={Page * 24}&limit=24&map={Uri.EscapeDataString(MapFilter)}&search={Uri.EscapeDataString(Search)}");
+        var result = await api.GetAsync<RegionPage>($"{Path}/records?offset={Page * 24}&limit=24&map={Uri.EscapeDataString(MapFilter)}&search={Uri.EscapeDataString(Search)}" + (FocusedId is int id ? $"&id={id}" : ""));
         Rows = result.Items; PageCount = Math.Max(1, (result.Total + 23) / 24); Catalog = await api.GetAsync<RegionCatalog>(Path);
+        Atlas.RegionCatalog = Catalog.Id; Atlas.Schedule();
     }
     public Task SelectAsync(int id) => Run(async () => Load(await api.GetAsync<RegionRecord>($"{Path}/records/{id}")));
+    public Task SelectFromAtlasAsync(int id) => Run(async () => { Load(await api.GetAsync<RegionRecord>($"{Path}/records/{id}")); FocusedId = id; Page = 0; MapFilter = Map; Search = ""; await List(); });
+    public Task AtlasMapChangedAsync() => Run(async () => { FocusedId = null; MapFilter = Atlas.Current?.Name ?? ""; Page = 0; Search = ""; if (Catalog is not null) await List(); });
+    public void ApplyAtlasVolume(RegionVolumeEdit edit)
+    {
+        if (!CanEditAtlas) { Error = "Acquire the region lock before changing its geometry on this map."; Notify(); return; }
+        var v = edit.Volume;
+        if (v.X1 < 0 || v.Y1 < 0 || v.X2 <= v.X1 || v.Y2 <= v.Y1 || v.X2 > Atlas.Current!.Width || v.Y2 > Atlas.Current.Height) return;
+        if (edit.Index is int index && index >= 0 && index < Area.Count) SetAreas(Area.Select((old, i) => i == index ? v with { Z1 = old.Z1, Z2 = old.Z2 } : old));
+        else if (edit.Index is null && Area.Count < 512) SetAreas(Area.Append(v));
+    }
+    private void AtlasChanged(object? sender, PropertyChangedEventArgs args) => ChangedAll();
     private void Load(RegionRecord record)
     {
         Selected = record; Name = record.Summary.Name; Map = record.Summary.Map; Type = record.Summary.Type; Priority = record.Summary.Priority;
         ParentName = record.Summary.ParentName ?? ""; ParentMap = record.Value.TryGetProperty("Parent", out var parent) && parent.ValueKind == JsonValueKind.Object ? parent.GetProperty("Map").GetString()! : Map;
         Area = record.Area; JsonText = OriginalJson = JsonSerializer.Serialize(record.Value, Json);
+        Atlas.Focus(Map, Area);
     }
     public JsonElement Build()
     {
@@ -142,7 +168,7 @@ public sealed class RegionsViewModel : ObservableViewModel, IAsyncDisposable
         var area = Area.ToArray(); var v = area[index]; area[index] = axis switch { 0 => v with { X1 = number }, 1 => v with { Y1 = number }, 2 => v with { Z1 = number }, 3 => v with { X2 = number }, 4 => v with { Y2 = number }, _ => v with { Z2 = number } }; SetAreas(area);
     }
     private void SessionChanged(object? sender, PropertyChangedEventArgs args) { if (!session.HasSession) Reset(); Notify(); }
-    private void Reset() { Catalog = null; Selected = null; Rows = []; Area = []; Exported = null; JsonText = OriginalJson = "{}"; }
+    private void Reset() { Catalog = null; Selected = null; Rows = []; Area = []; Exported = null; FocusedId = null; Atlas.ClearOverlay(); JsonText = OriginalJson = "{}"; }
     private async Task Poll()
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
@@ -158,6 +184,7 @@ public sealed class RegionsViewModel : ObservableViewModel, IAsyncDisposable
                     if (Catalog?.Id != id) continue;
                     DocumentOwner? Owner(int record) { var held = locks.FirstOrDefault(held => held.Id == record); return held is null ? null : new(held.UserName, held.Own, held.ExpiresAt); }
                     Rows = Rows.Select(row => row with { Lock = Owner(row.Id) }).ToArray();
+                    Atlas.UpdateOwners(locks);
                     if (Selected is not null) Selected = Selected with { Summary = Selected.Summary with { Lock = Owner(Selected.Summary.Id) } }; Notify();
                 }
                 catch (HttpRequestException ex) { LiveLocksKnown = false; Error = "Live region locks unavailable: " + ex.Message; Notify(); }
@@ -165,5 +192,5 @@ public sealed class RegionsViewModel : ObservableViewModel, IAsyncDisposable
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
     }
-    public async ValueTask DisposeAsync() { session.PropertyChanged -= SessionChanged; lifetime.Cancel(); if (polling is not null) await polling; lifetime.Dispose(); }
+    public async ValueTask DisposeAsync() { session.PropertyChanged -= SessionChanged; Atlas.PropertyChanged -= AtlasChanged; await Atlas.DisposeAsync(); lifetime.Cancel(); if (polling is not null) await polling; lifetime.Dispose(); }
 }

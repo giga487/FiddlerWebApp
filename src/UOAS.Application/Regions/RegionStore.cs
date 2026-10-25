@@ -83,12 +83,12 @@ public sealed class RegionWorkspace : IDisposable
     public IReadOnlyList<DocumentLock> Locks() => leases.List(state.Key).Where(lease => lease.Asset.Kind == "Region").Select(lease => new DocumentLock(lease.Asset.Id, lease.UserName, lease.SessionId == owner, lease.Expires)).ToArray();
     private DocumentOwner? Owner(int id) { var held = Locks().FirstOrDefault(lease => lease.Id == id); return held is null ? null : new(held.UserName, held.Own, held.ExpiresAt); }
     private RegionSummary Summary(int id, JsonElement value, bool deleted = false) => new(id, RegionDocument.Text(value, "Name"), RegionDocument.Text(value, "Map"), RegionDocument.Text(value, "$type", "Region"), RegionDocument.Number(value, "Priority"), value.TryGetProperty("Parent", out var parent) && parent.ValueKind == JsonValueKind.Object ? RegionDocument.Text(parent, "Name") : null, drafts.ContainsKey(id), deleted, Owner(id));
-    public RegionPage Page(int offset, int limit, string? map, string? search)
+    public RegionPage Page(int offset, int limit, string? map, string? search, int? exactId = null)
     {
         if (offset < 0 || limit is < 1 or > 100) throw new ArgumentException("Choose a page size from 1 to 100.");
         var values = Values();
         foreach (var (id, value) in drafts.Where(pair => pair.Value is null)) if (baseline.TryGetValue(id, out var old)) values[id] = old.Value;
-        var rows = values.Where(pair => (string.IsNullOrEmpty(map) || RegionDocument.Text(pair.Value, "Map") == map) && (string.IsNullOrEmpty(search) || RegionDocument.Text(pair.Value, "Name").Contains(search, StringComparison.OrdinalIgnoreCase) || RegionDocument.Text(pair.Value, "$type").Contains(search, StringComparison.OrdinalIgnoreCase))).OrderBy(pair => pair.Key).ToArray();
+        var rows = values.Where(pair => (exactId is null || pair.Key == exactId) && (string.IsNullOrEmpty(map) || RegionDocument.Text(pair.Value, "Map") == map) && (string.IsNullOrEmpty(search) || RegionDocument.Text(pair.Value, "Name").Contains(search, StringComparison.OrdinalIgnoreCase) || RegionDocument.Text(pair.Value, "$type").Contains(search, StringComparison.OrdinalIgnoreCase))).OrderBy(pair => pair.Key).ToArray();
         return new(rows.Length, rows.Skip(offset).Take(limit).Select(pair => Summary(pair.Key, pair.Value, drafts.TryGetValue(pair.Key, out var draft) && draft is null)).ToArray());
     }
     public RegionRecord Read(int id)
@@ -96,6 +96,18 @@ public sealed class RegionWorkspace : IDisposable
         if (drafts.TryGetValue(id, out var draft) && draft is { } edited) return new(Summary(id, edited), edited, RegionDocument.Areas(edited));
         if (!baseline.TryGetValue(id, out var row)) throw new KeyNotFoundException("Region not found in this catalog.");
         return new(Summary(id, row.Value, drafts.ContainsKey(id)), row.Value, RegionDocument.Areas(row.Value));
+    }
+    public RegionOverlayPage Overlay(string map, double x, double y, double width, double height, int? z, int offset, int limit)
+    {
+        if (string.IsNullOrWhiteSpace(map) || !double.IsFinite(x + y + width + height) || x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > 1_000_000 || y + height > 1_000_000 || offset < 0 || limit is < 1 or > 100) throw new ArgumentException("Choose a valid map viewport and page size from 1 to 100.");
+        var rows = new List<(int Id, JsonElement Value, RegionVolume[] Area)>();
+        foreach (var pair in Values())
+        {
+            if (RegionDocument.Text(pair.Value, "Map") != map) continue;
+            var area = RegionDocument.Areas(pair.Value).Where(v => v.X1 < x + width && v.X2 > x && v.Y1 < y + height && v.Y2 > y && (z is null || v.Z1 <= z && v.Z2 > z)).ToArray();
+            if (area.Length > 0) rows.Add((pair.Key, pair.Value, area));
+        }
+        return new(rows.Count, rows.OrderByDescending(row => RegionDocument.Number(row.Value, "Priority")).ThenBy(row => row.Id).Skip(offset).Take(limit).Select(row => new RegionOverlay(Summary(row.Id, row.Value), row.Area)).ToArray());
     }
     public DocumentOwner Acquire(int id)
     {

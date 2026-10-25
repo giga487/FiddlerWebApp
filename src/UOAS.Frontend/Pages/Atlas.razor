@@ -1,0 +1,17 @@
+@page "/atlas"
+@implements IAsyncDisposable
+@inject IAssetApi Api
+<PageTitle>Atlas · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page"><div class="eyebrow">@ApplicationInfo.ShortName / WORLD OVERVIEW</div><h1>Atlas</h1><p>Explore available maps from above. Only visible image tiles are downloaded; map archives remain on the backend.</p>
+@if (ViewModel is not null)
+{
+<AtlasCanvas ViewModel="ViewModel" />
+<div class="atlas-cards">@foreach (var map in ViewModel.Maps) { <button class="atlas-card" @onclick="() => ViewModel.Choose(map)" disabled="@(!map.Ready)"><strong>@map.Name</strong><span>@map.Library · file @map.FileId</span>@if (ViewModel.Thumbnails.TryGetValue(AtlasViewModel.Key(map), out var png)) { <img src="@("data:image/png;base64," + Convert.ToBase64String(png))" alt="@map.Name overview" /> }<span>@(map.Ready ? $"{map.Width} × {map.Height}" : map.Detail)</span></button> }</div>
+}
+</section>
+@code {
+    private AtlasViewModel? ViewModel;
+    protected override async Task OnInitializedAsync() { ViewModel = new(Api); ViewModel.PropertyChanged += Updated; await ViewModel.LoadMapsAsync(); }
+    private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    public async ValueTask DisposeAsync() { if (ViewModel is not null) { ViewModel.PropertyChanged -= Updated; await ViewModel.DisposeAsync(); } }
+}

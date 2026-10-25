@@ -118,6 +118,9 @@ banner. Animation can be paused and respects reduced-motion preferences.
 - **Server regions**: configured ModernUO regions.json sources, volume/Z preview,
   hierarchy, type-specific rules, named ID locks and merged JSON publishing.
   See [server region editor](docs/server-regions.md) for configuration and deployment.
+- **Atlas**: top-down MUL/UOP map panoramas, compressed image tiles, shared backend
+  cache and local zoom/pan. The region editor overlays selectable boundaries and
+  permits drawing/moving/resizing owned volumes. See [atlas](docs/atlas.md).
 - **API reference**: generated OpenAPI at backend `/api/openapi/v1.json`.
 
 Plugin uploads never approve themselves. Add an inspected package's SHA256 to

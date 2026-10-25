@@ -11,15 +11,25 @@
 @if (!Settings.RootConfigured) { <p class="notice">Configure Storage:RootDirectory in backend appsettings to enable browsing. The root can only be changed on the server.</p> }
 else
 {
-<div class="tool-columns"><div><h2>Backend folders</h2><p class="storage-breadcrumb">/@Settings.CurrentPath</p><div class="toolbar"><button @onclick='() => Settings.NavigateAsync("")' disabled="@Settings.Busy">Root /</button><button @onclick='() => Settings.NavigateAsync(Settings.Folder?.Parent ?? "")' disabled="@(Settings.Busy || Settings.Folder?.Parent is null)">Parent folder</button></div>
-@if (Settings.Folder is { } folder)
+<div class="tool-columns configuration-columns"><div class="storage-panel"><h2>Backend file explorer</h2>
+<nav class="storage-breadcrumb" aria-label="Folder location">@foreach (var crumb in Settings.Breadcrumbs) { <span aria-hidden="true">/</span><button @onclick="() => Settings.NavigateAsync(crumb.Path)" disabled="@Settings.Busy">@crumb.Name</button> }</nav>
+<p class="muted">Expand folders with the arrows. Select a folder or file to use it in your configuration.</p>
+<nav class="storage-explorer" aria-label="Backend files and folders"><ul><StorageTreeNode Node="Settings.RootNode" Settings="Settings" /></ul></nav>
+@if (Settings.SelectedEntry is { } selected)
 {
-<div class="tool-output storage-browser"><table><thead><tr><th>Name</th><th>Kind</th><th>Bytes</th><th>Choose</th></tr></thead><tbody>@foreach (var entry in folder.Entries) { <tr><td>@if (entry.Directory && !entry.Blocked) { <button @onclick="() => Settings.NavigateAsync(entry.Path)" disabled="@Settings.Busy">@entry.Name/</button> } else { @entry.Name }</td><td>@(entry.Blocked ? "Link · blocked" : entry.Directory ? "Folder" : "File")</td><td>@entry.Bytes</td><td>@if (!entry.Directory && !entry.Blocked && entry.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) { <button @onclick="() => Settings.AddRegions(entry.Path)" disabled="@Settings.Busy">Use region file</button> }</td></tr> }</tbody></table>@if (folder.Total == 0) { <p>This folder is empty.</p> }</div>
-<div class="toolbar"><button @onclick="Settings.PreviousAsync" disabled="@(Settings.Busy || Settings.Page == 0)">Previous folder page</button><span>@(Settings.Page + 1) / @Settings.PageCount</span><button @onclick="Settings.NextAsync" disabled="@(Settings.Busy || Settings.Page + 1 >= Settings.PageCount)">Next folder page</button></div>
-<div class="toolbar"><button @onclick="Settings.AddLibrary" disabled="@Settings.Busy">Use folder for assets</button><button @onclick="Settings.UseFolderForRegions" disabled="@Settings.Busy">Use folder for regions.json</button><button @onclick="Settings.UseExportFolder" disabled="@Settings.Busy">Use folder for exports</button></div>
+    <div class="storage-selection" aria-live="polite"><span class="eyebrow">@(selected.Directory ? "SELECTED FOLDER" : "SELECTED FILE")</span><strong>/@selected.Path</strong>@if (selected.Bytes is { } bytes) { <span class="muted">@bytes.ToString("N0") bytes</span> }
+    <div class="toolbar">
+    @if (Settings.SelectedFolder)
+    {
+        <button @onclick="Settings.AddLibrary" disabled="@Settings.Busy">Use folder for assets</button><button @onclick="Settings.UseFolderForRegions" disabled="@Settings.Busy">Use folder for regions.json</button><button @onclick="Settings.UseExportFolder" disabled="@Settings.Busy">Use folder for exports</button>
+    }
+    @if (Settings.SelectedRegionFile) { <button @onclick="() => Settings.AddRegions(selected.Path)" disabled="@Settings.Busy">Use region file</button> }
+    </div>
+    @if (!selected.Directory && !Settings.SelectedRegionFile) { <p class="muted">For asset files, select the containing folder as an asset library.</p> }
+    </div>
 }
 </div><div><fieldset disabled="@Settings.Busy"><legend>Sources</legend><h2>Asset libraries</h2>
-@foreach (var library in Settings.Libraries) { <div class="settings-source" @key="library"><label>ID<input @bind="library.Id" /></label><label>Name<input @bind="library.Name" /></label><label>Relative folder<input @bind="library.Directory" placeholder="Clients/Classic" /></label><button @onclick="() => Settings.Remove(library)">Remove library</button></div> }
+@foreach (var library in Settings.Libraries) { <div class="settings-source" @key="library"><label>ID<input @bind="library.Id" /></label><label>Name<input @bind="library.Name" /></label><label>Relative folder<input @bind="library.Directory" placeholder="Clients/Classic" /></label><details><summary>Atlas map names and dimensions</summary><p class="muted">Names must match the server region map names. Width and height 0 use standard size detection; custom dimensions are multiples of 8.</p>@foreach (var map in library.Maps) { <div class="tool-fields"><label>Map file ID<input type="number" min="0" max="255" @bind="map.FileId" /></label><label>Server map name<input @bind="map.Name" /></label><label>Width<input type="number" min="0" max="16384" step="8" @bind="map.Width" /></label><label>Height<input type="number" min="0" max="16384" step="8" @bind="map.Height" /></label><button @onclick="() => Settings.RemoveMap(library, map)">Remove map override</button></div> }<button @onclick="() => Settings.AddMap(library)">Add map override</button></details><button @onclick="() => Settings.Remove(library)">Remove library</button></div> }
 <h2>Server regions</h2>@foreach (var region in Settings.Regions) { <div class="settings-source" @key="region"><label>ID<input @bind="region.Id" /></label><label>Name<input @bind="region.Name" /></label><label>Relative JSON file<input @bind="region.File" placeholder="ServerData/regions.json" /></label><button @onclick="() => Settings.Remove(region)">Remove region source</button></div> }
 <h2>Exports</h2><label>Relative output folder<input @bind="Settings.ExportDirectory" placeholder="Exports" /></label></fieldset><p class="muted">Selecting folders changes this form. Save configuration to apply it. Links cannot be traversed. The browser cannot move, delete or download arbitrary backend files.</p></div></div>
 }

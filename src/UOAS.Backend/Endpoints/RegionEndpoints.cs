@@ -22,7 +22,8 @@ public static class RegionEndpoints
         });
         const string root = "/regions/{catalogId:guid}";
         api.MapGet(root, (Guid catalogId, HttpContext http) => Workspace(http, catalogId).Info());
-        api.MapGet(root + "/records", (Guid catalogId, int? offset, int? limit, string? map, string? search, HttpContext http) => Workspace(http, catalogId).Page(offset ?? 0, limit ?? 24, map, search));
+        api.MapGet(root + "/records", (Guid catalogId, int? offset, int? limit, string? map, string? search, int? id, HttpContext http) => Workspace(http, catalogId).Page(offset ?? 0, limit ?? 24, map, search, id));
+        api.MapGet(root + "/overlay", (Guid catalogId, string map, double x, double y, double width, double height, int? z, int? offset, int? limit, HttpContext http) => Workspace(http, catalogId).Overlay(map, x, y, width, height, z, offset ?? 0, limit ?? 100));
         api.MapGet(root + "/records/{id:int}", (Guid catalogId, int id, HttpContext http) => Workspace(http, catalogId).Read(id));
         api.MapPost(root + "/records", (Guid catalogId, HttpContext http) => Workspace(http, catalogId).Create());
         api.MapPut(root + "/records/{id:int}", (Guid catalogId, int id, JsonElement value, HttpContext http) => { var workspace = Workspace(http, catalogId); workspace.Put(id, value); return workspace.Read(id); });

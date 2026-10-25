@@ -65,7 +65,7 @@ public sealed class MapArchive : IDisposable
     }
     public static MapArchive Open(string path, int facet = 0, string? staticIndex = null, string? staticPath = null)
     {
-        if (facet < 0 || facet > 5) throw new ArgumentOutOfRangeException(nameof(facet));
+        if (facet < 0 || facet > 255) throw new ArgumentOutOfRangeException(nameof(facet));
         return new(path, facet, staticIndex, staticPath);
     }
     private static int Length(UopEntry entry) => entry.Compression == 0 ? entry.StoredLength : entry.ExpandedLength;
@@ -118,6 +118,18 @@ public sealed class MapArchive : IDisposable
                 }
             }
         return new(x, y, size, land.AsReadOnly(), items.AsReadOnly());
+    }
+    public byte[] ReadTerrainBlock(int id)
+    { if (id < 0 || id >= BlockCount) throw new ArgumentOutOfRangeException(nameof(id)); return ReadBlock(id); }
+    public byte[] ReadTerrainBlocks(int first, int count)
+    {
+        if (first < 0 || count is < 1 or > 4096 || (long)first + count > BlockCount) throw new ArgumentOutOfRangeException(nameof(count));
+        var data = new byte[count * BlockBytes];
+        if (map is null) { for (int i = 0; i < count; i++) ReadBlock(first + i).CopyTo(data, i * BlockBytes); return data; }
+        int read = 0;
+        while (read < data.Length)
+        { int length = RandomAccess.Read(map, data.AsSpan(read), (long)first * BlockBytes + read); if (length == 0) throw new InvalidDataException("Truncated map blocks."); read += length; }
+        return data;
     }
     private byte[] ReadBlock(int id)
     {

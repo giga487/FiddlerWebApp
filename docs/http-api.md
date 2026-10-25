@@ -65,6 +65,12 @@ changed. Expired or stale publishers cannot overwrite a newer record.
 
 ## Other endpoints
 
+Atlas routes under `/api/atlas` list discovered maps, thumbnails and 256-pixel
+image tiles. Each image request carries the catalog revision; changed sources
+return 409. Region `/overlay` routes return viewport/Z-filtered geometry and
+named locks without acquiring them. See [atlas](atlas.md) for cache, scale,
+custom-map configuration and image formats.
+
 `GET /api/region-sources` lists configured server JSON sources. `POST /api/regions`
 with `{ "source": "default" }` opens a session-owned catalog independent of
 client assets. `/api/regions/{catalogId}` provides state and close; `/records`

@@ -68,6 +68,12 @@ backend App_Data/workspace; the original server file is preserved.
 
 ## Editing and collaboration
 
+The region page now includes the shared [atlas](atlas.md) with visible boundaries,
+overlap selection and Z filtering. Register client map files and radarcol.mul in
+Configuration to enable the geographic background. The map name must match each
+region's Map property. Drawing, moving and resizing require the selected ID lock
+and modify the form until Save region draft is chosen.
+
 Browse/search by map, name or type. The editor exposes name, map, type, priority,
 parent, volumes, locations, music, expansion limits, common rules and visibility
 settings. Its Skia preview fits all selected-region volumes and supports a Z

@@ -1,0 +1,147 @@
+@using SkiaSharp
+@using SkiaSharp.Views.Blazor
+@implements IDisposable
+@inject IJSRuntime JS
+<div class="atlas-view">
+<div class="tool-fields"><button @onclick="ViewModel.LoadMapsAsync" disabled="@ViewModel.LoadingMaps">Refresh atlas</button><label>Map<select @bind="ViewModel.SelectedKey" @bind:after="MapChanged" disabled="@ViewModel.LoadingMaps"><option value="">Select map</option>@foreach (var map in ViewModel.Maps) { <option value="@AtlasViewModel.Key(map)" disabled="@(!map.Ready)">@map.Name · @map.Library @(map.Ready ? "" : "· unavailable")</option> }</select></label><button @onclick="() => ViewModel.Zoom(.7)" disabled="@(ViewModel.Current is null || ViewModel.Scale <= 1)">Zoom in</button><button @onclick="() => ViewModel.Zoom(1.4)" disabled="@(ViewModel.Current is null)">Zoom out</button><button @onclick="ViewModel.Fit">Fit map</button>
+@if (ShowRegions) { <label class="inline"><input type="checkbox" @bind="showRegions" @bind:after="Redraw" /> Region boundaries</label><label class="inline"><input type="checkbox" @bind="filterZ" @bind:after="SliceChanged" /> Filter Z</label><label>Z<input type="number" @bind="sliceZ" @bind:after="SliceChanged" /></label><label>Tool<select @bind="tool" disabled="@(!CanEdit)"><option>Pan</option><option>Draw volume</option><option>Move volume</option><option>Resize volume</option></select></label><label>Volume<select @bind="volumeIndex" disabled="@(!CanEdit)">@for (int i = 0; i < SelectedArea.Count; i++) { <option value="@i">@(i + 1)</option> }</select></label> }
+</div>
+@if (ViewModel.LoadingMaps || ViewModel.Loading) { <p class="muted" role="status">@(ViewModel.LoadingMaps ? "Preparing map previews…" : "Loading visible map layers…")</p> }
+@if (ViewModel.Error is not null) { <p class="notice error" role="alert">@ViewModel.Error</p> }
+@foreach (string warning in ViewModel.Warnings) { <p class="notice">@warning</p> }
+@if (ViewModel.OverlayNotice is not null) { <p class="notice">@ViewModel.OverlayNotice</p> }
+@if (ViewModel.Current is { } current)
+{
+<p class="muted">@current.Name · @current.Width × @current.Height cells · 1:@ViewModel.Scale.ToString("0.#") · @current.Detail @if (ShowRegions) { <span> · @Overlays.Count regions in view · yellow: selected · purple: draft · green: available · red: locked by another designer</span> }</p>
+<div class="skia-stage atlas-stage" @ref="stage" @onwheel="Wheel" @onwheel:preventDefault @onpointerdown="Down" @onpointermove="Move" @onpointerup="Up" @onpointercancel="Cancel" data-overlays="@Overlays.Count" data-tiles="@ViewModel.Images.Count" data-left="@ViewModel.Left.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-top="@ViewModel.Top.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-scale="@ViewModel.Scale.ToString(System.Globalization.CultureInfo.InvariantCulture)"><SKCanvasView @ref="surface" OnPaintSurface="Paint" /></div>
+<p class="muted">@cursor @if (CanEdit) { <span> · Changes stay in the form until Save region draft. Resize uses the lower-right corner.</span> } else if (ShowRegions) { <span> · Select a region and acquire its lock to edit its volumes.</span> }</p>
+@if (hits.Count > 0) { <div class="atlas-hits"><strong>Regions at this point</strong>@foreach (var hit in hits) { <button @onclick="() => SelectHit(hit.Summary.Id)">@(hit.Summary.Name.Length == 0 ? $"Unnamed {hit.Summary.Id}" : hit.Summary.Name) · priority @hit.Summary.Priority @(hit.Summary.Lock is { } held ? "· " + held.UserName : "")</button> }</div> }
+}
+else
+{ <p class="notice">Add a client library containing map*.mul or map*legacymul.uop and radarcol.mul in <a href="/configuration">Configuration</a>. Custom maps need a name and dimensions matching the server.</p> }
+</div>
+@code {
+    [Parameter, EditorRequired] public AtlasViewModel ViewModel { get; set; } = null!;
+    [Parameter] public bool ShowRegions { get; set; }
+    [Parameter] public IReadOnlyList<RegionOverlay> Overlays { get; set; } = [];
+    [Parameter] public int? SelectedId { get; set; }
+    [Parameter] public IReadOnlyList<RegionVolume> SelectedArea { get; set; } = [];
+    [Parameter] public bool CanEdit { get; set; }
+    [Parameter] public EventCallback<int> OnSelectRegion { get; set; }
+    [Parameter] public EventCallback<RegionVolumeEdit> OnEditVolume { get; set; }
+    [Parameter] public EventCallback OnMapChanged { get; set; }
+    private readonly Dictionary<string, SKBitmap> bitmaps = [];
+    private AtlasViewModel? observed;
+    private SKCanvasView? surface;
+    private ElementReference stage;
+    private bool dirty = true, showRegions = true, filterZ, dragging, moved;
+    private int sliceZ, volumeIndex;
+    private string tool = "Pan", cursor = "";
+    private double startX, startY, lastX, lastY, cssWidth = 900, cssHeight = 480;
+    private double originX, originY, worldStartX, worldStartY;
+    private int lastWidth, lastHeight;
+    private Task<double[]>? gestureMeasure;
+    private RegionVolume? original, preview;
+    private List<RegionOverlay> hits = [];
+    protected override void OnParametersSet()
+    {
+        if (observed != ViewModel) { if (observed is not null) observed.PropertyChanged -= Updated; observed = ViewModel; observed.PropertyChanged += Updated; filterZ = ViewModel.Slice.HasValue; sliceZ = ViewModel.Slice ?? 0; }
+        if (volumeIndex >= SelectedArea.Count) volumeIndex = 0;
+        foreach (string key in bitmaps.Keys.Where(key => ViewModel.Images.All(tile => tile.Key != key)).ToArray()) { bitmaps[key].Dispose(); bitmaps.Remove(key); }
+        dirty = true;
+    }
+    private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(() => { dirty = true; StateHasChanged(); });
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (ViewModel.Current is null) return;
+        if (dirty)
+        {
+            dirty = false; var size = await JS.InvokeAsync<double[]>("uoas.measure", stage);
+            if (size.Length >= 4) { cssWidth = size[0]; cssHeight = size[1]; originX = size[2]; originY = size[3]; ViewModel.Size(cssWidth, cssHeight); }
+            surface?.Invalidate();
+        }
+    }
+    private void Redraw() { dirty = true; surface?.Invalidate(); }
+    private async Task MapChanged() { hits = []; preview = null; await ViewModel.ChangeMapAsync(); await OnMapChanged.InvokeAsync(); }
+    private void SliceChanged() { ViewModel.Slice = filterZ ? sliceZ : null; ViewModel.Schedule(); dirty = true; }
+    private void Paint(SKPaintSurfaceEventArgs args)
+    {
+        var canvas = args.Surface.Canvas; canvas.Clear(new SKColor(20, 35, 42)); canvas.Scale((float)(args.Info.Width / cssWidth), (float)(args.Info.Height / cssHeight));
+        if (args.Info.Width != lastWidth || args.Info.Height != lastHeight) { lastWidth = args.Info.Width; lastHeight = args.Info.Height; dirty = true; _ = InvokeAsync(StateHasChanged); }
+        float X(double x) => (float)((x - ViewModel.Left) / ViewModel.Scale);
+        float Y(double y) => (float)((y - ViewModel.Top) / ViewModel.Scale);
+        foreach (var tile in ViewModel.Images)
+        {
+            if (!bitmaps.TryGetValue(tile.Key, out var bitmap)) { bitmap = SKBitmap.Decode(tile.Png); if (bitmap is null) continue; bitmaps[tile.Key] = bitmap; }
+            canvas.DrawBitmap(bitmap, new SKRect(X(tile.X * 256d * tile.Scale), Y(tile.Y * 256d * tile.Scale), X((tile.X + 1) * 256d * tile.Scale), Y((tile.Y + 1) * 256d * tile.Scale)));
+        }
+        if (!ShowRegions || !showRegions) return;
+        using var stroke = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f };
+        using var fill = new SKPaint { IsAntialias = true };
+        foreach (var row in Overlays.OrderBy(row => row.Summary.Id == SelectedId))
+        {
+            var color = row.Summary.Id == SelectedId ? new SKColor(255, 220, 65) : row.Summary.Lock is { Own: false } ? new SKColor(255, 100, 100) : row.Summary.Draft ? new SKColor(195, 128, 255) : new SKColor(50, 220, 190);
+            stroke.Color = color; fill.Color = color.WithAlpha(28);
+            var areas = row.Summary.Id == SelectedId ? SelectedArea : row.Area;
+            for (int i = 0; i < areas.Count; i++)
+            {
+                var v = row.Summary.Id == SelectedId && preview is not null && (tool == "Draw volume" ? i == areas.Count : i == volumeIndex) ? preview : areas[i];
+                if (filterZ && !(v.Z1 <= sliceZ && v.Z2 > sliceZ)) continue;
+                var rect = new SKRect(X(v.X1), Y(v.Y1), X(v.X2), Y(v.Y2)); canvas.DrawRect(rect, fill); canvas.DrawRect(rect, stroke);
+                if (row.Summary.Id == SelectedId && i == volumeIndex && CanEdit) canvas.DrawRect(rect.Right - 4, rect.Bottom - 4, 8, 8, stroke);
+            }
+        }
+        if (preview is { } drawn && tool == "Draw volume") { stroke.Color = SKColors.Yellow; canvas.DrawRect(new SKRect(X(drawn.X1), Y(drawn.Y1), X(drawn.X2), Y(drawn.Y2)), stroke); }
+    }
+    private async Task Wheel(WheelEventArgs args) { if (dragging) return; var size = await JS.InvokeAsync<double[]>("uoas.measure", stage); ViewModel.Zoom(args.DeltaY < 0 ? .8 : 1.25, args.ClientX - size[2], args.ClientY - size[3]); }
+    private (double X, double Y) World(double x, double y) => (ViewModel.Left + x * ViewModel.Scale, ViewModel.Top + y * ViewModel.Scale);
+    private async Task Down(PointerEventArgs args)
+    {
+        if (args.Button != 0 || !args.IsPrimary || ViewModel.Current is null) return;
+        dragging = true; moved = false; hits = []; startX = lastX = args.ClientX; startY = lastY = args.ClientY; original = preview = null;
+        gestureMeasure = JS.InvokeAsync<double[]>("uoas.measure", stage).AsTask();
+        var size = await gestureMeasure; originX = size[2]; originY = size[3];
+        if (!dragging) return;
+        (worldStartX, worldStartY) = World(args.ClientX - originX, args.ClientY - originY);
+        if (CanEdit && (tool is "Move volume" or "Resize volume") && volumeIndex >= 0 && volumeIndex < SelectedArea.Count) original = SelectedArea[volumeIndex];
+        await JS.InvokeVoidAsync("uoas.capture", stage, args.PointerId);
+    }
+    private void Move(PointerEventArgs args)
+    {
+        var point = World(args.ClientX - originX, args.ClientY - originY); cursor = $"X {point.X:0} · Y {point.Y:0}";
+        if (!dragging) return;
+        if (gestureMeasure is { IsCompleted: false }) return;
+        moved |= Math.Abs(args.ClientX - startX) + Math.Abs(args.ClientY - startY) > 4;
+        if (!CanEdit || tool == "Pan") ViewModel.Pan(args.ClientX - lastX, args.ClientY - lastY);
+        else if (ViewModel.Current is { } map)
+        {
+            var start = (X: worldStartX, Y: worldStartY); int x = Math.Clamp((int)Math.Round(point.X), 0, map.Width), y = Math.Clamp((int)Math.Round(point.Y), 0, map.Height);
+            if (tool == "Draw volume") preview = new(Math.Clamp((int)Math.Min(start.X, x), 0, map.Width), Math.Clamp((int)Math.Min(start.Y, y), 0, map.Height), -128, Math.Clamp((int)Math.Max(start.X, x), 0, map.Width), Math.Clamp((int)Math.Max(start.Y, y), 0, map.Height), 128);
+            else if (original is { } v)
+            {
+                if (tool == "Move volume") { int dx = Math.Clamp((int)Math.Round(point.X - start.X), -v.X1, map.Width - v.X2), dy = Math.Clamp((int)Math.Round(point.Y - start.Y), -v.Y1, map.Height - v.Y2); preview = v with { X1 = v.X1 + dx, X2 = v.X2 + dx, Y1 = v.Y1 + dy, Y2 = v.Y2 + dy }; }
+                else preview = v with { X2 = Math.Max(v.X1 + 1, x), Y2 = Math.Max(v.Y1 + 1, y) };
+            }
+        }
+        lastX = args.ClientX; lastY = args.ClientY; dirty = true; surface?.Invalidate();
+    }
+    private async Task Up(PointerEventArgs args)
+    {
+        if (!dragging) return;
+        if (gestureMeasure is not null) { var size = await gestureMeasure; originX = size[2]; originY = size[3]; }
+        moved |= Math.Abs(args.ClientX - startX) + Math.Abs(args.ClientY - startY) > 4;
+        if (moved) Move(args); dragging = false;
+        await JS.InvokeVoidAsync("uoas.release", stage, args.PointerId);
+        if (CanEdit && preview is { } v && v.X2 > v.X1 && v.Y2 > v.Y1) await OnEditVolume.InvokeAsync(new(tool == "Draw volume" ? null : volumeIndex, v));
+        else if (!moved && showRegions && ShowRegions)
+        {
+            var p = World(args.ClientX - originX, args.ClientY - originY);
+            hits = Overlays.Where(row => (row.Summary.Id == SelectedId ? SelectedArea : row.Area).Any(area => area.X1 <= p.X && area.X2 > p.X && area.Y1 <= p.Y && area.Y2 > p.Y && (!filterZ || area.Z1 <= sliceZ && area.Z2 > sliceZ))).OrderByDescending(row => row.Summary.Priority).ToList();
+            if (hits.Count == 1) await SelectHit(hits[0].Summary.Id);
+        }
+        preview = original = null; Redraw();
+    }
+    private void Cancel(PointerEventArgs args) { dragging = false; preview = original = null; Redraw(); }
+    private async Task SelectHit(int id) { hits = []; await OnSelectRegion.InvokeAsync(id); }
+    public void Dispose() { if (observed is not null) observed.PropertyChanged -= Updated; foreach (var bitmap in bitmaps.Values) bitmap.Dispose(); }
+}

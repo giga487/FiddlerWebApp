@@ -22,6 +22,7 @@ public partial class BackendProgram
         builder.Services.AddSingleton(new UOAS.Application.Storage.StorageRoot(builder.Configuration["Storage:RootDirectory"], builder.Environment.ContentRootPath));
         builder.Services.AddSingleton(services => new UOAS.Application.Storage.WorkspaceSettingsStore(services.GetRequiredService<UOAS.Application.Storage.StorageRoot>(), builder.Configuration, Path.Combine(builder.Environment.ContentRootPath, "App_Data", "workspace-settings")));
         builder.Services.AddSingleton(services => new UOAS.Application.Regions.RegionStore(Path.Combine(builder.Environment.ContentRootPath, "App_Data", "regions"), services.GetRequiredService<ResourceLeaseManager>()));
+        builder.Services.AddSingleton(services => new UOAS.Application.Atlas.AtlasService(services.GetRequiredService<UOAS.Application.Storage.WorkspaceSettingsStore>(), Path.Combine(builder.Environment.ContentRootPath, "App_Data", "atlas-cache"), services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping));
         builder.Services.AddSingleton<SkiaAssetRenderer>();
         builder.Services.AddSingleton<Fiddler.Graphics.World.IsometricSceneRenderer>();
         builder.Services.AddSingleton<Fiddler.Graphics.Animations.AnimationRenderer>();

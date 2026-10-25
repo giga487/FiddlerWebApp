@@ -72,5 +72,6 @@ public static class CollaborationEndpoints
         DocumentEndpoints.Map(api);
         RegionEndpoints.Map(api);
         StorageEndpoints.Map(api);
+        AtlasEndpoints.Map(api);
     }
 }

@@ -44,7 +44,19 @@ public sealed class WorkspaceSettingsStore(StorageRoot storage, IConfiguration c
         if (!storage.Configured) throw new InvalidOperationException("Configure Storage:RootDirectory on the backend first.");
         if (settings.Libraries is null || settings.RegionSources is null || settings.Libraries.Count > 32 || settings.RegionSources.Count > 32) throw new ArgumentException("Configure at most 32 libraries and 32 region sources.");
         if (settings.Libraries.Select(item => item.Id).Distinct().Count() != settings.Libraries.Count || settings.RegionSources.Select(item => item.Id).Distinct().Count() != settings.RegionSources.Count) throw new ArgumentException("Source IDs must be unique within their collection.");
-        foreach (var library in settings.Libraries) { Key(library.Id); Name(library.Name); storage.ValidateLibrary(library.Directory); }
+        foreach (var library in settings.Libraries)
+        {
+            Key(library.Id); Name(library.Name); storage.ValidateLibrary(library.Directory);
+            if (library.Maps is { } maps)
+            {
+                if (maps.Count > 256 || maps.Select(map => map.FileId).Distinct().Count() != maps.Count) throw new ArgumentException("Map file IDs must be unique, with at most 256 overrides per library.");
+                foreach (var map in maps)
+                {
+                    Name(map.Name);
+                    if (map.FileId is < 0 or > 255 || !(map.Width == 0 && map.Height == 0 || map.Width is >= 8 and <= 16384 && map.Height is >= 8 and <= 16384 && map.Width % 8 == 0 && map.Height % 8 == 0)) throw new ArgumentException("Map dimensions must both be 0 for detection or multiples of 8 from 8 to 16384.");
+                }
+            }
+        }
         foreach (var region in settings.RegionSources)
         {
             Key(region.Id); Name(region.Name); string file = storage.Resolve(region.File);

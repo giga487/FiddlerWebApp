@@ -12,6 +12,8 @@
 @if (ViewModel.Catalog is { } catalog)
 {
 <p>@catalog.Name · @catalog.Count regions · @catalog.DraftCount drafts · revision @catalog.Revision</p>
+<AtlasCanvas ViewModel="ViewModel.Atlas" ShowRegions="true" Overlays="ViewModel.AtlasOverlays" SelectedId="ViewModel.Selected?.Summary.Id" SelectedArea="ViewModel.Area" CanEdit="ViewModel.CanEditAtlas" OnSelectRegion="ViewModel.SelectFromAtlasAsync" OnEditVolume="ViewModel.ApplyAtlasVolume" OnMapChanged="ViewModel.AtlasMapChangedAsync" />
+@if (ViewModel.FocusedId is int focused) { <p>List focused on region ID @focused. <CommandButton Command="ViewModel.SearchCommand">Show matching regions</CommandButton></p> }
 <div class="tool-fields"><label>Map filter<select @bind="ViewModel.MapFilter"><option value="">All maps</option>@foreach (string map in catalog.Maps) { <option>@map</option> }</select></label><label>Name / type search<input @bind="ViewModel.Search" /></label><CommandButton Command="ViewModel.SearchCommand">Search regions</CommandButton><CommandButton Command="ViewModel.NewCommand">New region</CommandButton><CommandButton Command="ViewModel.RefreshCommand">Refresh published regions</CommandButton><CommandButton Command="ViewModel.PublishCommand" CssClass="primary">Publish regions</CommandButton><button @onclick="Download" disabled="@ViewModel.Busy">Download regions.json</button></div>
 <div class="tool-columns"><div><div class="tool-output"><table><thead><tr><th>Region</th><th>Map / type</th><th>Lock owner</th></tr></thead><tbody>@foreach (var row in ViewModel.Rows) { <tr class="@(row.Deleted ? "region-deleted" : "")"><td><button disabled="@ViewModel.Busy" @onclick="() => ViewModel.SelectAsync(row.Id)">@(row.Name.Length == 0 ? $"Unnamed region {row.Id}" : row.Name)</button><small>ID @row.Id @(row.Deleted ? "· pending deletion" : row.Draft ? "· draft" : "")</small>@if (row.ParentName is not null) { <small>Parent: @row.ParentName</small> }</td><td>@row.Map<small>@row.Type · priority @row.Priority</small></td><td>@(row.Lock is { } owner ? owner.UserName + (owner.Own ? " (you)" : "") : "Available")</td></tr> }</tbody></table></div><div class="toolbar"><CommandButton Command="ViewModel.PreviousCommand">Previous</CommandButton><span>@(ViewModel.Page + 1) / @ViewModel.PageCount</span><CommandButton Command="ViewModel.NextCommand">Next</CommandButton></div></div>
 <div class="tool-output">
@@ -20,7 +22,7 @@
 <h2>@(selected.Summary.Name.Length == 0 ? "Unnamed region" : selected.Summary.Name) <small>ID @selected.Summary.Id</small></h2>
 <p class="lock-status @(selected.Summary.Lock is { Own: false } ? "other" : "")">@(!ViewModel.LiveLocksKnown ? "Lock status unavailable · read only" : selected.Summary.Lock is { } held ? $"Locked by {held.UserName}" + (held.Own ? " (you)" : " · read only") : "Available for editing")</p>
 <div class="toolbar"><CommandButton Command="ViewModel.AcquireCommand">Start editing region</CommandButton><CommandButton Command="ViewModel.ReleaseCommand">Release region</CommandButton><CommandButton Command="ViewModel.UndoCommand">Undo and release region</CommandButton></div>
-<RegionCanvas Volumes="ViewModel.Area" />
+@if (ViewModel.Atlas.Current?.Name != ViewModel.Map) { <p class="notice">No atlas background matches @ViewModel.Map. Configure its client map name and dimensions to edit over the map.</p><RegionCanvas Volumes="ViewModel.Area" /> }
 <fieldset disabled="@(!ViewModel.OwnsSelection || ViewModel.Busy)"><legend>Region definition</legend>
 <div class="tool-fields"><label>Name<input maxlength="200" @bind="ViewModel.Name" /></label><label>Map<select @bind="ViewModel.Map">@foreach (string map in catalog.Maps) { <option>@map</option> }</select></label><label>Server type<select @bind="ViewModel.Type">@foreach (string type in catalog.Types) { <option>@type</option> }</select></label><label>Priority<input type="number" @bind="ViewModel.Priority" /></label><label>Parent name (empty = none)<input @bind="ViewModel.ParentName" /></label><label>Parent map<select @bind="ViewModel.ParentMap">@foreach (string map in catalog.Maps) { <option>@map</option> }</select></label></div>
 <h3>Volumes</h3><p class="muted">Bounds are half-open: X1/Y1/Z1 included, X2/Y2/Z2 excluded. A region can contain multiple volumes.</p>
@@ -41,7 +43,7 @@ else { <p>Select a region or create a new definition.</p> }
 @code {
     private static readonly string[] Axes = ["X1", "Y1", "Z1", "X2", "Y2", "Z2"];
     private bool confirmDelete;
-    protected override async Task OnInitializedAsync() { ViewModel.PropertyChanged += Updated; await ViewModel.SourcesCommand.ExecuteAsync(); }
+    protected override async Task OnInitializedAsync() { ViewModel.PropertyChanged += Updated; await ViewModel.SourcesCommand.ExecuteAsync(); await ViewModel.Atlas.LoadMapsAsync(); }
     private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
     private async Task Download() { await ViewModel.ExportCommand.ExecuteAsync(); if (ViewModel.Error is null && ViewModel.Exported is { } exported) await JavaScript.InvokeVoidAsync("uoas.download", "regions.json", Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(exported.Json)), "application/json"); }
     public void Dispose() => ViewModel.PropertyChanged -= Updated;

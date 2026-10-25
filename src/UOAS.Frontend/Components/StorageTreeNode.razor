@@ -1,0 +1,35 @@
+<li>
+    <div class="storage-tree-row @(Settings.SelectedEntry?.Path == Node.Entry.Path ? "selected" : "")" data-path="@Node.Entry.Path">
+        @if (Node.Entry.Directory && !Node.Entry.Blocked)
+        {
+            <button class="storage-disclosure" aria-label="@($"{(Node.Expanded ? "Collapse" : "Expand")} {Node.Entry.Name}")" aria-expanded="@Node.Expanded.ToString().ToLowerInvariant()" disabled="@Settings.Busy" @onclick="() => Settings.ToggleAsync(Node)"><span aria-hidden="true">@(Node.Expanded ? "▾" : "▸")</span></button>
+        }
+        else { <span class="storage-disclosure-spacer"></span> }
+        <button class="storage-node-name" disabled="@(Settings.Busy || Node.Entry.Blocked)" aria-current="@(Settings.SelectedEntry?.Path == Node.Entry.Path ? "true" : null)" title="@(Node.Entry.Blocked ? "Symbolic links and junctions cannot be opened" : "/" + Node.Entry.Path)" @onclick="() => Settings.SelectAsync(Node)">
+            <svg class="storage-icon @(Node.Entry.Directory ? "folder" : "file")" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                @if (Node.Entry.Directory) { <path d="M3 6h6l2 2h10v12H3z" /> }
+                else { <path d="M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 16h6" /> }
+            </svg>
+            <span>@Node.Entry.Name</span>
+            @if (Node.Entry.Blocked) { <small>Blocked link</small> }
+        </button>
+    </div>
+    @if (Node.Expanded)
+    {
+        <ul>
+            @foreach (var child in Node.Children)
+            {
+                <StorageTreeNode Node="child" Settings="Settings" @key="child.Entry.Path" />
+            }
+            @if (Node.Loaded && Node.Total == 0) { <li class="storage-tree-hint">Empty folder</li> }
+            @if (Node.Children.Count < Node.Total)
+            {
+                <li><button class="storage-load-more" disabled="@Settings.Busy" @onclick="() => Settings.LoadMoreAsync(Node)">Show more (@Node.Children.Count of @Node.Total)</button></li>
+            }
+        </ul>
+    }
+</li>
+@code {
+    [Parameter, EditorRequired] public StorageBrowserNode Node { get; set; } = default!;
+    [Parameter, EditorRequired] public ConfigurationViewModel Settings { get; set; } = default!;
+}
