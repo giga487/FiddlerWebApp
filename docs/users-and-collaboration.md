@@ -1,141 +1,46 @@
-# Users and collaborative editing
+# Collaboration sessions and per-ID locks
 
-## User context
+Open the WASM frontend and enter a display name. This creates a distinct
+collaboration session for that tab. Names identify editors but are not verified
+accounts; authentication and authorization are deferred. There is no shared
+implicit local user and no removed server UI to launch.
 
-Every file workspace requires a signed-in server identity. The header displays
-the current user's name and provider, with Users and Sign out actions. The Users
-page lists active users, session counts and reserved IDs. It is a presence and
-workspace manager, not a password or role administration console.
+Select a backend-configured library and click **Open library**. Only library IDs
+configured under `Assets:Libraries` can be opened. The backend owns source file
+handles, private drafts and published versions; browsers receive bounded data.
 
-Google's stable subject identifies the account. Folder preferences are persisted
-per account under `App_Data/users/<SHA256-account-id>/client-directory.json`.
-`Mul:Directory` seeds each new user's setting. The legacy global configuration
-file is not deleted or silently shared. Drafts, composition caches and open
-readers remain scoped to the interactive circuit, so tabs do not mutate each
-other's temporary state. Full reloads or circuit disposal can discard private
-drafts; publish changes before leaving the session.
+## Viewing and editing
 
-The [HTTP API](http-api.md) also supports independent workspaces owned by the
-user and login. These retain private drafts across requests for up to 15 idle
-minutes and use the same shared versions and edit leases as browser circuits.
+Selecting Gump 1 is read-only and does not lock it. **Start editing ID** acquires
+its lease. Alice can still open Gump 1 and see the last published image, together
+with **Locked by <your name>**. Her mutation controls are disabled and direct API
+writes are rejected by the backend. Private drafts become visible to other
+sessions only after publication and refresh.
 
-The UI does not instantiate file pages for anonymous visitors. Server-side edit
-methods independently validate identity and ownership; disabling a button is
-not the enforcement mechanism. Google tokens are not retained. Sign-in cookies
-expire after eight hours, without sliding renewal. Sign-out revokes the login
-for existing circuits and immediately releases its edit leases; authenticated
-callbacks check revocation before edits. Presence entries expire after two
-minutes without a heartbeat.
+Lock keys distinguish source library, resource kind and ID. Land 10 and Item 10
+are independent slots even though they share art.mul. Gump 10 is independent.
+The same file exposed under directory aliases normalizes to a shared lock key.
+Font, hue, Cliloc and TileData editors also enforce ownership by filename,
+record kind and ID. Font glyph IDs combine font index and character code.
 
-## Authentication mode
+## Lifetime and publishing
 
-`Authentication:Mode` selects how identity is established:
+The interface polls owner metadata every three seconds and renews active
+workspace leases. The lock expires after two minutes without renewal. Explicit
+**Release ID** or **End session** releases clean locks immediately. Drafts must
+be published or explicitly discarded before releasing their ID. Browser crashes
+and lost connections rely on expiry; closing a tab is not a reliable cleanup
+request. Sessions expire after 15 minutes without activity.
 
-| Mode | Behavior |
-|---|---|
-| `Required` (default) | Visitors sign in with Google or, in Development, a development profile. |
-| `Open` | Every request is authenticated as one shared user, "Local user" (`open:local`). No sign-in page, cookie or Sign out action. |
+Publishing pins the caller's leases, checks each record's base version and
+merges modifications against the latest published archive. Different designers
+can publish different IDs without discarding each other's changes. An editor
+whose lease expired cannot write through the new owner's lock, release it or
+overwrite a newer published record. Its private draft remains until discarded.
 
-```powershell
-dotnet run --project src/FiddlerWebApp -- --Authentication:Mode=Open --Mul:Directory="D:\Data\Client"
-```
+Published files and manifests are kept in backend-managed App_Data storage;
+original source files are unchanged. Run one backend instance per source
+library. Multiple replicas require a distributed lock/version coordinator.
 
-Open mode keeps the API, antiforgery checks and edit leases working, but every
-browser and API client is the same user: folder settings are shared and the
-Users page shows each tab as a session of that user. Edit leases still separate
-tabs. Startup logs a warning in Open mode. Use it only on trusted hosts, since
-anyone who can reach the server can browse its folders and publish changes.
-Google and development-profile settings are ignored in Open mode.
-
-## Google sign-in
-
-Configure these values through environment variables or a server secret store:
-
-```text
-Authentication__Google__ClientId=<Google OAuth client ID>
-Authentication__Google__ClientSecret=<Google OAuth client secret>
-Authentication__AllowedEmails__0=<optional allowed email>
-```
-
-Register the application's public callback URL ending in `/signin-google` in
-the Google OAuth client. Use the deployed host in AllowedHosts. The application
-uses the ASP.NET Core Google handler and an HTTP-only application cookie, with
-PKCE and antiforgery validation on sign-out. Google setup follows the
-[official ASP.NET Core documentation](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/social/google-logins?view=aspnetcore-10.0).
-
-If AllowedEmails is nonempty, only listed, verified Google email addresses are
-accepted. An empty list allows any Google account that completes sign-in. No
-account has additional administrative privileges in this implementation.
-Without Google credentials, the sign-in page explains the missing setup and
-file pages remain unavailable.
-
-For development only:
-
-```powershell
-dotnet run --project src/FiddlerWebApp -- --environment Development --Authentication:DevelopmentProfiles=true --Mul:Directory="D:\Data\Client"
-```
-
-The development form creates a fresh unverified profile for that browser's
-login. It is useful for testing two users with separate browser profiles or
-private windows. It is not password authentication, does not provide account
-recovery, and is disabled by default. Startup rejects this flag outside the
-Development environment. Google remains the configured provider for real accounts.
-
-## Edit leases
-
-The lock key is the canonical source directory, resource kind and numeric ID.
-Paths normalize case on Windows and resolve directory links, including parent
-links. Different directories, kinds or IDs can be edited independently. Current
-mutation support is Gump-only; Multi, map and animation pages are read-only.
-
-Click Start editing ID to reserve it. A server-wide atomic lease identifies
-both user and circuit, with a unique fencing token. Another tab, even for the
-same account, cannot write that ID. Other users can continue to read or compare
-it. Private drafts are not visible to others until publication.
-
-Leases last two minutes and renew every fifteen seconds while connected.
-Disconnection stops renewal. Expired leases cannot be revived by an old token;
-reacquisition is allowed only if the ID has not gained a newer shared version.
-A stale draft stays in memory for explicit undo or review. Successful publication,
-undo, discard, release, sign-out or circuit disposal releases the relevant leases.
-An ID with a private draft cannot be released without undoing or publishing it.
-Pinned publication leases cannot expire midway through an export.
-
-## Shared publication and conflict protection
-
-Each source archive has an immutable latest published directory, a revision
-number and per-ID versions. Sessions open a snapshot of that version. Refresh
-shared version adopts the latest base while preserving the session's own drafts;
-it does not hide a stale draft's original version stamp.
-
-Publication is serialized per source archive. It validates all changed IDs'
-lease tokens and expected versions, opens the latest published complete archive,
-then overlays only that session's changes. If Alice edits ID 1 and Bob edits ID 2,
-Bob's publication includes Alice's already-published ID 1. The result is a new
-complete MUL/IDX directory; original files remain untouched. On success the
-session clears its drafts and adopts the shared version.
-
-The shared manifest is written atomically under `App_Data/shared-gumps` only
-after export succeeds. Cancellation or a conflict leaves the previous manifest
-and drafts intact. If manifest publication fails after export, the error reports
-the completed export path and no shared pointer is replaced. Do not delete
-published directories while they are referenced by the manifest. Changes to
-source file sizes or timestamps are detected and require review rather than
-silently rebasing onto externally modified originals.
-
-## Current scope
-
-Coordination is for one application process. Multiple replicas or worker
-processes require a shared transactional database and distributed leases; pointing
-multiple independent instances at the same files is not supported. Export files
-and manifests persist; user presence and leases do not survive a restart.
-Existing readers keep their snapshots until refreshed. There is no automatic
-real-time sharing of unpublished image edits, account role editor, per-folder
-permission administration or collaborative map modification.
-
-Tests cover concurrent acquisition, different-ID independence, expiry/fencing,
-same-account tabs, pinned exports, disconnected heartbeats, revoked identities,
-concurrent merged publication, restart recovery, stale drafts, cancellation and
-lease cleanup. Browser validation uses explicit development profiles to verify
-two-user workflows. Real Google sign-in requires deployment credentials and
-cannot be validated with synthetic identities.
+See [API reference](http-api.md), [split architecture](split-architecture.md)
+and the [README](../README.md) for startup and configuration.

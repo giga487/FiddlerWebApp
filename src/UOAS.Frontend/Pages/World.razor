@@ -1,0 +1,11 @@
+@page "/multi"
+@implements IDisposable
+@inject ToolViewModel ViewModel
+<PageTitle>Multis · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page"><div class="eyebrow">@ApplicationInfo.ShortName / MULTIS</div><h1>Multi preview</h1>
+    <div class="tool-fields"><label>Multi ID<input type="number" min="0" @bind="ViewModel.Id" /></label><label>MUL row format<select @bind="ViewModel.RowSize"><option value="16">High Seas · 16 bytes</option><option value="12">Legacy · 12 bytes</option></select></label><CommandButton Command="ViewModel.LoadCommand" CssClass="primary">Load preview</CommandButton></div>
+    @if (ViewModel.Error is not null) { <p class="notice error">@ViewModel.Error</p> }
+    <SkiaPreview Png="ViewModel.Png" />
+    <p class="muted">The backend renders the requested multi. Zoom and pan run in your browser.</p>
+</section>
+@code { protected override void OnInitialized() => ViewModel.PropertyChanged += Updated; private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged); public void Dispose() => ViewModel.PropertyChanged -= Updated; }

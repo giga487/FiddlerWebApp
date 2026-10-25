@@ -1,0 +1,21 @@
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using UOAS.Frontend;
+using UOAS.Presentation.Services;
+using UOAS.Presentation.ViewModels;
+
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.RootComponents.Add<App>("#app");
+builder.RootComponents.Add<HeadOutlet>("head::after");
+builder.Services.AddScoped(_ => new HttpClient { BaseAddress = new Uri(builder.Configuration["BackendUrl"] ?? "http://localhost:5188/") });
+builder.Services.AddScoped<IAssetApi, AssetApiClient>();
+builder.Services.AddScoped<WorkspaceViewModel>();
+builder.Services.AddScoped<ToolViewModel>();
+builder.Services.AddScoped<CompositionViewModel>();
+builder.Services.AddScoped<DocumentViewModel>();
+builder.Services.AddScoped<ComparisonViewModel>();
+builder.Services.AddScoped<AnimationViewModel>();
+builder.Services.AddScoped<ColorBoardViewModel>();
+builder.Services.AddScoped<PluginsViewModel>();
+builder.Services.AddScoped<RegionsViewModel>();
+await builder.Build().RunAsync();

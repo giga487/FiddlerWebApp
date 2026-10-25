@@ -1,0 +1,19 @@
+@page "/gump/composition"
+@implements IDisposable
+@inject CompositionViewModel ViewModel
+@inject IJSRuntime JavaScript
+<PageTitle>Composition · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page"><div class="eyebrow">@ApplicationInfo.ShortName / DESIGN CANVAS</div><h1>Gump composition</h1><p>Drag pieces directly on the board. Movement and rendering stay in your browser.</p>
+    <div class="tool-fields"><label>Gump ID<input type="number" min="0" @bind="ViewModel.AssetId" /></label><CommandButton Command="ViewModel.AddCommand" CssClass="primary">Add Gump</CommandButton><label>Board width<input type="number" min="64" max="2048" @bind="ViewModel.BoardWidth" /></label><label>Board height<input type="number" min="64" max="2048" @bind="ViewModel.BoardHeight" /></label><button @onclick="ViewModel.RemoveSelected">Remove selected piece</button><button @onclick="ViewModel.Clear">Clear board</button><button @onclick="Download">Download composition PNG</button></div>
+    @if (ViewModel.Error is not null) { <p class="notice error">@ViewModel.Error</p> }
+    <CompositionCanvas ViewModel="ViewModel" @ref="canvas" />
+    <div class="toolbar">@foreach (var piece in ViewModel.Pieces) { <button @onclick="() => ViewModel.Select(piece.Key)">#@piece.Key · Gump @piece.AssetId · @piece.X.ToString("0"), @piece.Y.ToString("0")</button> }</div>
+    <p class="muted">Layouts are local compositions. Editing the underlying archive requires acquiring that asset's lock in Graphics.</p>
+</section>
+@code {
+    private CompositionCanvas? canvas;
+    protected override void OnInitialized() => ViewModel.PropertyChanged += Updated;
+    private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    private async Task Download() { if (canvas is not null) await JavaScript.InvokeVoidAsync("uoas.download", "uoas-composition.png", Convert.ToBase64String(canvas.Export())); }
+    public void Dispose() => ViewModel.PropertyChanged -= Updated;
+}

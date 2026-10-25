@@ -1,296 +1,150 @@
 # UOAssetsService (UOAS)
 
-Ultima Online asset manager: Blazor Web App (.NET 10), Fluent UI Blazor 5 and SkiaSharp rendering.
-One application to run, with reusable readers and graphics in separate projects.
-All project text uses English, including UI labels, messages, accessibility text,
-catalog categories and documentation. The web host uses the en-US culture.
-Product names, API labels, export directory and log file names are centralized
-in `src/FiddlerWebApp/ApplicationInfo.cs`.
+Ultima Online asset workshop with an ASP.NET Core backend and a standalone
+Blazor WebAssembly frontend. ViewModels and commands use MVVM; SkiaSharp renders
+server previews and browser canvases. All interface text is in English.
 
-The home page (`/`) introduces the available tools below an animated Ultima
-Online ASCII banner on a black background. Its animation can be paused and
-respects reduced-motion preferences. The graphics catalog lives at `/gump`.
+## Run
+
+Open **UOAS.sln**. Install .NET SDK 10 and the `wasm-tools` workload, then run
+these commands in separate terminals from this repository:
+
+```powershell
+dotnet run --project src/UOAS.Backend -- --Assets:Libraries:default:Directory="D:\Data\Client"
+dotnet run --project src/UOAS.Frontend
+```
+
+Open [the workshop](http://localhost:5178). The backend listens on
+`http://localhost:5188`. Enter a display name, select a library and choose
+**Open library**. Each browser tab starts a separate collaboration session.
+Names identify designers; they are not verified accounts. Authentication and
+role-based authorization are deferred.
+
+The old Interactive Server application has been removed. There is one solution
+and two runnable projects: `UOAS.Backend` and `UOAS.Frontend`.
 
 ## Architecture
 
 ```text
-FiddlerWebApp --> Fiddler.Graphics --> Fiddler.Formats
-  Blazor/UI       SkiaSharp           IDX/MUL/UOP and ARGB32 pixels
+UOAS.Frontend      Blazor WASM views and SkiaSharp canvases
+    |
+UOAS.Presentation  Observable ViewModels, commands and HTTP client
+    |
+UOAS.Contracts     DTOs and ApplicationInfo product constants
+        HTTP / JSON / requested PNGs
+UOAS.Backend       ASP.NET Core API and collaboration session host
+    |
+UOAS.Application   Workspaces, per-ID leases, drafts and shared publishing
+    |
+Fiddler.Graphics   Reusable server-side SkiaSharp renderers
+    |
+Fiddler.Formats    Bounded MUL/IDX/UOP readers and resource encoders
 ```
 
-- `Fiddler.Formats`: containers, decoders, Gump drafts, comparison and export. No SkiaSharp or UI dependencies.
-- `Fiddler.Graphics`: bitmaps, SKCanvas drawing, PNGs, thumbnails and compositions. No Blazor, HTTP, Windows Forms or System.Drawing dependencies.
-- `FiddlerWebApp`: separate user sessions, collection selection, decimal/hex ID search, pagination, previews and zoom.
-- `Fiddler.Tests`: synthetic fixtures covering decoders, indexes, session isolation and Skia rendering.
+The frontend has no reference to the backend, application services, file readers
+or source archives. The backend retains handles and indices, reads requested
+records and returns only paginated metadata and requested images. Zoom, pan,
+composition and animation playback run locally in WASM.
 
-See [module architecture](docs/architecture.md). Art, Gumps, Animations, Multis and
-Maps have dedicated readers. Containers handle binary storage; Imaging holds
-shared pixel and drawing primitives. `Graphics/World` renders isometric Multi and
-map previews. Sounds currently have file inventory support only.
+See [split architecture](docs/split-architecture.md) and
+[format modules](docs/architecture.md).
 
-The authenticated [HTTP API v1](docs/http-api.md) exposes asset reading, PNG
-rendering, file scans and collaborative Gump editing through independent
-user-owned workspaces. Download its OpenAPI contract at `/api/openapi/v1.json`
-after signing in. MCP and machine tokens are deferred until API validation.
+## Libraries and output
 
-## Run
+Configure backend libraries under `Assets:Libraries:<id>:Directory` and
+`Assets:Libraries:<id>:Name`. Browsers select a library ID rather than arbitrary
+server paths. Original files remain read-only. New published versions are
+written beneath backend `Assets:ExportDirectory` (default `App_Data/exports`).
+Shared version manifests and files under backend `App_Data` must be backed up
+together. Paths belong to the backend computer, not the browser computer.
 
-Requires .NET SDK 10. From this repository:
+Configure `BackendUrl` in frontend `wwwroot/appsettings.json`, backend
+`Frontend:Origins` and `AllowedHosts` when changing hosts or ports.
+
+## Per-ID collaboration
+
+Selecting or viewing an asset does not lock it. **Start editing ID** acquires a
+lease for the normalized library, resource type and ID. Other designers can
+view that ID, see **Locked by <name>**, and cannot modify it. Land 10, Item 10
+and Gump 10 are independent resources. Font, hue, Cliloc and TileData records
+also enforce per-record locks. Source filename variants remain independent.
+
+The backend validates ownership on every write and publish. Client-side button
+states are only presentation. Writes and exports use server-held fencing tokens
+and per-record versions; an expired editor cannot overwrite a newer version.
+Changes to different IDs merge when published. Private drafts are not visible
+to other designers until publication.
+
+Lock status updates every three seconds. Leases expire after two minutes without
+renewal. Explicit release or **End session** releases locks immediately. Browser
+closure and network failure rely on expiry. Sessions expire after 15 minutes
+of inactivity. Run one backend instance per library: the current coordinator
+is in memory and does not support multiple API replicas.
+
+See [sessions and collaboration](docs/users-and-collaboration.md).
+
+## Tools
+
+The home page summarizes the workshop beneath an animated Ultima Online ASCII
+banner. Animation can be paused and respects reduced-motion preferences.
+
+- **Graphics**: paginated Gump/Item/Land catalog with empty slots, ID search,
+  PNG previews/import, Art removal, private drafts and shared version publishing.
+- **Compose**: local SkiaSharp Gump composition, dragging and PNG download.
+- **Land tiles**: individual terrain graphics, empty slots, PNG editing and ID locks;
+  full map browsing and editing are outside this application's UI.
+- **Multis and animations**: Multi previews, paginated animation bodies, category/ID
+  search, available actions/directions, local playback, frame seek, loop and zoom.
+- **Compare Gumps**: compare configured libraries, filter differences, inspect both
+  images and copy reference records into locked destination IDs.
+- **Resources**: font PNG replacement, 32-sample hue palettes, Cliloc text and
+  TileData fields and named flags, with per-record locks and versioned publishing.
+  Fonts include character lookup, offsets, text preview and glyph PNG export.
+  Hues include gradients, palette undo/copy and a local Skia sample board with
+  full, gray-only and TileData-driven automatic coloring.
+- **Inventory**: available/missing client files and basic index checks.
+- **Diagnostics**: filtered backend logs, exceptions, structured properties and
+  UTC time ranges, view clearing and runtime capture verbosity, alongside console
+  and rotating JSON Lines files.
+- **Plugins**: DLL/ZIP quarantine, SHA256 approval through server configuration,
+  activation/deactivation, removal and commands on detached selected images.
+- **Server regions**: configured ModernUO regions.json sources, volume/Z preview,
+  hierarchy, type-specific rules, named ID locks and merged JSON publishing.
+  See [server region editor](docs/server-regions.md) for configuration and deployment.
+- **API reference**: generated OpenAPI at backend `/api/openapi/v1.json`.
+
+Plugin uploads never approve themselves. Add an inspected package's SHA256 to
+`Plugins:TrustedPackageHashes` on the backend before activating it. Activation
+executes code with the backend process's permissions; it is not a sandbox.
+See [plugin packages](docs/plugins.md).
+
+Animation UOP, verdata and diff patches are not implemented. Multis
+are read-only previews. Art UOP reads are available for Multi scenes; editable
+Art currently uses MUL/IDX. See [world formats](docs/world-assets.md),
+[animation rendering](docs/animation-rendering.md) and
+[resource editing](docs/client-resource-editing.md) for format details.
+
+## Logging
+
+`ILogger<T>` flows through Serilog to console, the bounded diagnostics sink and
+`App_Data/logs/uoas-YYYYMMDD.jsonl`. Files roll daily and at 10 MiB, retaining the
+latest 14 files. `Diagnostics:LogDirectory` overrides the output directory;
+`Diagnostics:BufferCapacity` controls the live buffer (default 2,000; max 10,000).
+
+Capture levels use `Serilog:MinimumLevel:Default` and category overrides under
+`Serilog:MinimumLevel:Override`. Runtime capture changes affect all sinks and
+sessions until restart. Display filters do not delete stored events. Restarting
+clears the live buffer; file history is not loaded into the diagnostics page.
+
+## Verification
 
 ```powershell
-dotnet run --project src/FiddlerWebApp -- --Mul:Directory="D:\Data\Client"
+dotnet build UOAS.sln
+dotnet test UOAS.sln
 ```
 
-Open the localhost URL printed in the console and sign in, then click **Open archive**.
-Google sign-in requires server-side credentials; see [users and collaboration](docs/users-and-collaboration.md).
-To use the application without any sign-in, set `Authentication:Mode` to `Open`
-(`--Authentication:Mode=Open` or `Authentication__Mode=Open`); every visitor then
-shares one local user. The default is `Required`. The `http` and `https` launch
-profiles in `Properties/launchSettings.json` use `Open`.
-For explicit local testing, use the Development environment with
-`--Authentication:DevelopmentProfiles=true`. Development profiles are disabled
-by default and cannot be enabled in Production.
-Alternatively, open **Configuration**, enter an absolute server folder path,
-click **Scan folder**, then **Save folder**. Saved settings override the initial
-`Mul:Directory` value for that user and are stored under
-`App_Data/users/<account-hash>/client-directory.json`, outside wwwroot and Git.
-Each user has independent file settings; readers already open in another session
-remain active until that session reopens them. The old application-wide setting
-is preserved on disk but is not automatically assigned to every new user.
-The path belongs to the computer running the backend, rather than the browser.
-You can also set `Mul:Directory` in appsettings.json or use `Mul__Directory`.
-Game files remain outside the repository and wwwroot.
-
-## Diagnostics and log files
-
-Open **Diagnostics** (`/diagnostics`) for live server logs, newest first. The page
-shows UTC timestamps, verbosity, category, rendered messages, message templates,
-exceptions and structured properties. Filter by minimum level, category, message
-or exception text, UTC time range, or exception presence. Pause freezes only the
-view; refresh, filters and clearing the view do not delete stored logs or affect
-other sessions. The live sink keeps the most recent 2,000 events by default
-(`Diagnostics:BufferCapacity`, maximum 10,000), with bounded display text per event.
-It starts empty after a restart; file history is not loaded into the page.
-
-In `Required` authentication mode, list allowed account IDs under
-`Diagnostics:AdministratorIds`. In `Open` mode the shared local user can view
-diagnostics. Access is checked on each refresh and verbosity change, including
-after account revocation. Logs are server-wide rather than per-user.
-
-`ILogger<T>` and ASP.NET Core logs flow through Serilog into the console, the
-live sink and JSON Lines files in `App_Data/logs/uoas-YYYYMMDD.jsonl`, outside
-the web root. Files roll daily and at 10 MiB, retaining the latest 14 files.
-`Diagnostics:LogDirectory` accepts an absolute path or a path relative to the
-application content root. Files include full exception and structured event data;
-the live display truncation does not truncate the file sink. The host disposes
-and flushes the logger on shutdown.
-
-Configure capture levels through `Serilog:MinimumLevel:Default` and category
-overrides through `Serilog:MinimumLevel:Override` in appsettings or environment
-variables. The old `Logging:LogLevel` settings are replaced by these Serilog
-settings. The page can temporarily change the global capture minimum from
-Verbose to Fatal; category overrides remain in effect. This change affects all
-sinks and sessions until restart. Display filters only search events already
-captured. HTTP completion logs include method, path, status and elapsed time.
-
-The integration uses [Serilog.AspNetCore](https://github.com/serilog/serilog-aspnetcore)
-and [Serilog.Sinks.File](https://github.com/serilog/serilog-sinks-file).
-
-## File scan and supported formats
-
-`Fiddler.Formats/Catalog/UOFiddlerFiles.txt` snapshots the 131 file names in
-`Ultima.Files._uoFiles` from the workspace UOFiddler fork. Update the snapshot
-when that list changes. It is embedded in Formats; no desktop installation is needed.
-
-The scanner checks only the selected folder. It reports present/missing files,
-MUL/UOP alternatives, incomplete pairs or triples, empty files, index alignment,
-readability and case collisions. Empty statics and optional definitions are
-allowed. Unknown files are listed separately. File name matching ignores case.
-Requirements depend on client version and features: missing optional files do
-not necessarily indicate a broken client. The scan is an inventory and basic
-index check, rather than complete archive integrity validation.
-Configuration lists missing and unusable files with their purpose and the
-affected feature. It distinguishes required feature archives, optional statics,
-resources unused by the current viewer and files covered by an available format.
-The same per-file guidance is included in the HTTP file scan response.
-
-| Files | Collection |
-| --- | --- |
-| `artidx.mul` + `art.mul` | Land IDs 0–0x3FFF; item ID = index slot minus 0x4000 |
-| `gumpidx.mul` + `gumpart.mul` | Gumps; dimensions packed in the index extra field |
-| `gumpartLegacyMUL.uop` | Gump UOP v4/v5; stored, zlib and Mythic |
-| `anim.idx` + `anim.mul`, and anim2–anim6 | Bodies, actions and eight directions |
-| `multi.idx` + `multi.mul` / `MultiCollection.uop` | Multi components and previews |
-| `mapN.mul` / `mapNLegacyMUL.uop` | Land regions for maps 0–5 |
-| `staidxN.mul` + `staticsN.mul` | Optional map statics |
-| `artLegacyMUL.uop` | Art images for Multi/map scenes |
-
-Animation UOP, verdata and diff patches are not implemented. Hue editing and
-application to a configurable Item/Gump sample board are available in Color studio;
-the other catalogs and world/animation previews still show original colors.
-Empty slots are hidden; corrupt asset records are reported individually.
-Opening a MUL reads its index, then only the requested records (24 thumbnails
-per catalog page). Limits: 12 MB index, 16 MiB record, 4096 px per image side and
-4 million pixels per decoded image.
-
-## Gumps and animations
-
-Use `/gump` and `/animations`. Click **Open animations** and choose archive,
-body, action and direction. Controls include category/ID filters, play/pause,
-loop, frame stepping, seeking, delay and zoom. The default delay is 150 ms,
-matching UOFiddler's AnimatedPictureBox.
-
-Original pivots are preserved and directions 5–7 are mirrored. A common frame
-surface prevents motion caused only by changes in frame dimensions. SkiaSharp
-generates an atlas PNG on the server; browser requestAnimationFrame replays its
-cells without per-frame network requests. Playback pauses in hidden tabs.
-Navigation uses physical archive IDs, like explicit animX mode in UOFiddler.
-body.def, bodyconv.def, mobtypes.txt, equipment composition and hues are not applied.
-Animal and monster action names follow Fiddler; other bodies show action IDs.
-Sequence limits: 512 frames, 16 million decoded pixels and 16 million atlas pixels.
-See [animation rendering](docs/animation-rendering.md).
-
-## Reuse the graphics engine
-
-Reference `src/Fiddler.Graphics/Fiddler.Graphics.csproj` from another site or tool:
-
-```csharp
-using Fiddler.Formats.Art;
-using Fiddler.Graphics;
-
-using var archive = ArtMulReader.Open("artidx.mul", "art.mul");
-var image = archive.ReadItem(0x1234);
-var renderer = new SkiaAssetRenderer();
-byte[] png = renderer.RenderPng(image);
-// Or call renderer.Draw(canvas, image, destination) on your own SKCanvas.
-// CreateBitmap transfers bitmap ownership and disposal to the caller.
-```
-
-For Gumps, use `Fiddler.Formats.Gumps.GumpMulReader.Open("gumpidx.mul", "gumpart.mul")`
-and `Read(id)`. ArtRenderer and GumpRenderer also draw directly from raw records.
-Decoded images use unpremultiplied ARGB32; rendering preserves transparency and
-uses nearest-neighbor sampling. PNGs are generated on the server. SkiaSharp
-includes native Windows/macOS dependencies; Linux uses
-`SkiaSharp.NativeAssets.Linux.NoDependencies`. Runtime verification on the target
-Linux server is still required.
-
-## Import and compare Gumps
-
-Open **Import and compare Gumps** or `/gump/manage`. Add or replace a Gump from
-PNG, compare a second MUL/IDX or UOP, or copy a reference ID to the selected target.
-Skia previews show the actual 15-bit RGB, one-bit alpha conversion. Reserve an ID
-with **Start editing ID** before modifying it. Drafts are private to the session
-and visible throughout that workspace. Publishing merges them with the latest
-shared version, writes a complete new MUL/IDX pair and preserves original files.
-Other users can edit different IDs in the same archive and see published changes
-with **Refresh shared version**. Conflicting or expired edits cannot overwrite
-a newer shared version. The header identifies the current user; `/users` lists
-active users and edit leases.
-PNG uploads come from the browser's PC; comparison and output paths are on the
-server. Comparison uses decoded pixels and reports Equal, Different, Current
-only, Reference only and Unreadable. See [Gump management](docs/gump-management.md).
-
-## Create colors on a sample board
-
-Open **Color studio** (`/colors`) and **Open configured library**. Choose an
-existing hue or **Create a new hue**. Add Items and Gumps through **Browse assets
-visually**, by decimal/hex ID, or through the link in the original catalog's
-inspector. The board accepts up to 24 samples, including the same object in
-different modes. Every card compares its original image with the current palette.
-
-Edit any of the 32 RGB555 samples or generate a palette from shadow, midtone and
-highlight colors. All cards update together. Choose **Full color** or **Gray
-pixels only** per card, and use light/dark/checkerboard backgrounds and zoom.
-Undo, restore and duplicate support experimentation. Automatic mode reads the
-Item PartialHue flag from TileData, including session drafts; manual overrides
-remain available. Missing TileData and Gumps default to full color.
-Game hue IDs are one-based; hue 0 means the original image. New hues append after
-the source entries without changing existing IDs.
-
-**Export new hues.mul** writes a complete library to a new unique subfolder under
-the absolute server path you enter. It preserves source headers and unedited
-records, pads new blocks to eight entries, and never overwrites the loaded file.
-Drafts remain after export. A folder without hues.mul starts an empty library;
-its export contains only newly created hues. Board snapshots and palette drafts
-survive internal navigation in the same session, but not reloads or server restarts.
-See [Color studio](docs/color-studio.md) for format details and limits.
-
-## Compose Gumps on a grid
-
-Open **Compose Gumps on a grid** or `/gump/composition`. Add pieces by decimal
-or hexadecimal ID. Each image is placed in the first free grid space at its
-original size; multiple instances of an ID are allowed. Configure the board and
-cell size, with 50%, 100% and 200% zoom. Select a piece on the board or in the list
-to inspect its ID, coordinates and dimensions. Move it through X/Y or enable
-**Move here with a click on the board**. **Arrange without overlaps** repacks the
-pieces; manual placement permits overlaps. The last added piece is on top.
-
-The model and Skia renderer live in `Fiddler.Graphics/Gumps`, without Blazor
-dependencies. Compositions survive internal navigation within the session;
-they are not saved to disk and do not change archives. Images are snapshots:
-after editing an asset, use **Refresh image from workspace** for each affected
-instance. Original game layouts are not inferred. Limits: 2048×2048 px board,
-4–256 px cells, 128 pieces and 16 million pixels. Failed resizing preserves the
-previous composition.
-
-## Multis and map tiles
-
-**Multi** (`/multi`) opens MUL/IDX or MultiCollection UOP. For MUL, explicitly
-choose legacy 12-byte or High Seas 16-byte components; lengths can be ambiguous.
-Find decimal/hex IDs, step through Multis, filter maximum Z or include flags 0.
-The component list shows Art ID, X/Y/Z and flags.
-
-**Maps** (`/maps`) reads maps 0–5 from MUL/UOP, with optional staidx/statics pairs.
-Standard dimensions are detected per facet; custom maps require width/height
-in tiles. Explore 4×4, 8×8 or 16×16 regions using coordinates or cardinal buttons.
-Only relevant blocks are read: 196 bytes per 8×8 MUL block, or up to 4096 blocks
-per UOP chunk. The last UOP chunk is cached. Stored/zlib chunks are resolved by hash.
-
-Both views use Art MUL/IDX or ArtLegacyMUL UOP, preferring UOP automatically.
-Missing images have magenta placeholders and warnings. Select a piece to inspect
-its ID and coordinates; tables have 64 rows per page. Zoom is 50%, 100% or 200%.
-These are asset previews: hues, tiledata, deformed slopes, diff patches, verdata
-and animated statics are not applied. The original Land/Items catalog still
-requires Art MUL/IDX; Art UOP is available in the new scenes. Multis and maps
-are read-only. See [world assets](docs/world-assets.md).
-
-English routes are used by all links and documentation. Previous routes remain
-available as compatibility aliases for existing bookmarks.
-
-## Validation
-
-```powershell
-dotnet build FiddlerWebApp.sln -c Release
-dotnet test tests/Fiddler.Tests -c Release
-```
-
-Fixtures are generated in tests and contain no game assets. Original archives
-are opened read-only and closed when the session ends. There is no shared mutable
-graphics state across users. Real client data still needs verification.
-
-## Next steps
-
-Current work focuses on formats, visualization and shared Gump editing. Google
-sign-in is configurable, with an optional account allowlist. Deployment and
-authenticated asset downloads remain future work. Edit coordination currently
-supports one server process; multiple workers need a distributed lock/version store.
-
-## Fonts, Cliloc, TileData and Art editing
-
-Use **Fonts** (`/fonts`) to browse and replace ASCII/Unicode glyphs, adjust
-Unicode offsets and preview text. **Cliloc** (`/cliloc`) edits localized strings
-and flags. **TileData** (`/tiledata`) edits Land/Item names, flags and properties
-in both 32-bit and 64-bit layouts. **Import and edit Items / Land**
-(`/art/manage`) adds, replaces or removes graphics from Art MUL/IDX files.
-PNG imports show the converted game colors immediately.
-
-These editors keep private session drafts and export complete files into new
-server folders. They preserve original files and do not use shared Gump
-publishing. See [client resource editing](docs/client-resource-editing.md) for
-formats, limits and the remaining desktop parity gaps.
-
-## Server plugins
-
-The [plugin guide](docs/plugins.md) explains administrator setup, manual DLL/ZIP
-installation, activation and the `IFiddlerPlugin` SDK. The included Asset
-information plugin runs commands against decoded Item, Land and Gump images.
+`tests/Fiddler.Tests` covers format libraries, reusable services and renderers.
+`tests/UOAS.Tests` covers the active backend HTTP API, locks, shared publishing
+and MVVM commands. `tools/browser-smoke.mjs` checks two real WASM sessions and
+Skia rendering through a disposable Chromium CDP profile. Fixtures are synthetic;
+no game assets are bundled in tests.

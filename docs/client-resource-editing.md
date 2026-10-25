@@ -7,17 +7,29 @@ separate work. This does not claim full parity with desktop UOFiddler.
 
 ## Common workflow
 
-Configure the source folder under Configuration. Open a resource in its page,
-edit session drafts, enter an absolute server output parent folder and export.
+The active WASM editor is `/resources`; `/fonts`, `/colors`, `/cliloc` and
+`/tiledata` also route there. Choose a configured library, list its available
+documents, open a file and select a record ID. Acquire the ID before saving a
+draft, then publish the document to backend-managed output. Names, hue samples,
+Cliloc text, flags and structured records are edited in the current interface;
+font glyphs can be replaced from PNG, exported and found by character/font index.
+TileData provides dedicated numeric fields and named flag toggles. Font offsets
+and sample text have dedicated controls. Source file paths are backend settings.
+The format details below describe the reusable document implementations.
+
+Configure library and export paths on the backend. Open a resource in its page,
+acquire its record lock, edit session drafts and publish a new version.
 All exports use a new uniquely named folder and leave loaded client files
 untouched. The complete resource is exported, including unmodified records.
-Drafts remain after export; explicitly discard them before reopening a source.
-Undo restores the loaded source entry, rather than maintaining a history stack.
+Publication merges other designers' changes and releases the published ID locks.
+Undo and release restores the last published record. Palette edits also have
+a local undo stack before the record draft is saved.
 Internal navigation preserves drafts; a new session or server restart does not.
 
-These editors use private session drafts and independent file exports. They do
-not acquire Gump collaboration leases or publish to other users. Existing Gump
-editing and shared publishing remain available at `/gump/manage`.
+These editors use private session drafts and per-record collaborative leases.
+Different records can be edited by different designers, then merged into one
+shared published resource. The filename and record kind form part of each lock
+key. Gump editing and shared publishing remain available at `/gump/manage`.
 
 ## Fonts — `/fonts`
 

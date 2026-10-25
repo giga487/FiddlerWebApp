@@ -1,0 +1,33 @@
+@using SkiaSharp
+@using SkiaSharp.Views.Blazor
+<div class="canvas-toolbar"><label class="inline"><input type="checkbox" @bind="slice" @bind:after="Refresh" /> Filter by Z</label><label>Z<input type="number" @bind="z" @bind:after="Refresh" /></label><span>@Volumes.Count volumes · server coordinates · 2D boundary preview</span></div>
+<div class="skia-stage region-stage"><SKCanvasView @ref="surface" OnPaintSurface="Paint" /></div>
+@code {
+    [Parameter] public IReadOnlyList<RegionVolume> Volumes { get; set; } = [];
+    private SKCanvasView? surface;
+    private bool slice;
+    private bool dirty = true;
+    private int z;
+    protected override void OnParametersSet() => dirty = true;
+    private void Refresh() => dirty = true;
+    protected override void OnAfterRender(bool firstRender) { if (dirty) { dirty = false; surface?.Invalidate(); } }
+    private void Paint(SKPaintSurfaceEventArgs args)
+    {
+        var canvas = args.Surface.Canvas; canvas.Clear(new SKColor(20, 37, 44));
+        if (Volumes.Count == 0) return;
+        float left = Volumes.Min(v => v.X1), top = Volumes.Min(v => v.Y1), right = Volumes.Max(v => v.X2), bottom = Volumes.Max(v => v.Y2);
+        float scale = Math.Min((args.Info.Width - 80) / Math.Max(1, right - left), (args.Info.Height - 64) / Math.Max(1, bottom - top));
+        if (scale <= 0) return;
+        using var fill = new SKPaint { Color = new SKColor(29, 188, 170, 60) };
+        using var stroke = new SKPaint { Color = new SKColor(50, 220, 198), Style = SKPaintStyle.Stroke, StrokeWidth = 2 };
+        using var text = new SKPaint { Color = SKColors.White, IsAntialias = true };
+        using var font = new SKFont(SKTypeface.Default, 13);
+        for (int i = 0; i < Volumes.Count; i++)
+        {
+            var v = Volumes[i]; if (slice && (z < v.Z1 || z >= v.Z2)) continue;
+            var rect = new SKRect(40 + (v.X1 - left) * scale, 32 + (v.Y1 - top) * scale, 40 + (v.X2 - left) * scale, 32 + (v.Y2 - top) * scale);
+            canvas.DrawRect(rect, fill); canvas.DrawRect(rect, stroke); canvas.DrawText((i + 1).ToString(), rect.Left + 4, rect.Top + 16, font, text);
+        }
+        canvas.DrawText($"{left:0}, {top:0}", 8, 18, font, text); canvas.DrawText($"{right:0}, {bottom:0}", 8, args.Info.Height - 8, font, text);
+    }
+}

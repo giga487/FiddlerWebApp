@@ -10,6 +10,7 @@ public sealed class ArtDocument : IDisposable
     public int DirtyCount => edits.Count;
     public bool HasChanges => DirtyCount > 0;
     public int SlotCount => Math.Max(source.SlotCount, edits.Keys.DefaultIfEmpty(-1).Max() + 1);
+    public IReadOnlyDictionary<int, byte[]?> GetChanges() => edits.ToDictionary(pair => pair.Key, pair => pair.Value?.ToArray());
     private ArtDocument(IndexedMulFile source) => this.source = source;
     public static ArtDocument Open(string index, string data) => new(IndexedMulFile.Open(index, data));
     private static int Slot(AssetKind kind, int id)

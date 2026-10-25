@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../UOAS.Contracts/UOAS.Contracts.csproj" />
+    <ProjectReference Include="../Fiddler.Graphics/Fiddler.Graphics.csproj" />
+    <ProjectReference Include="../Fiddler.Plugin.Abstractions/Fiddler.Plugin.Abstractions.csproj" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+</Project>

@@ -1,5 +1,13 @@
 # Gump import and comparison
 
+The active WASM graphics editor is `/gump`; `/gump/manage` routes to the same
+editor. Select an ID, acquire its lock, import PNG and publish a new version.
+Other designers see the lock owner and the last published image. The archive
+comparison/copy workflow is available at `/gump/compare`. Choose a configured
+reference library, compare, select a result and acquire the destination ID lock
+before copying. Publish resulting drafts from Graphics. Reference readers are
+captured for the comparison so later publications do not change the chosen source.
+
 The `/gump/manage` page uses the current workspace document. Edits remain separate
 from the original archive until a new version is saved.
 
@@ -7,9 +15,9 @@ from the original archive until a new version is saved.
 
 1. Open Gumps from the configured folder or arrive from the viewer with an ID selected.
 2. Enter a target ID in decimal or hexadecimal with the 0x prefix.
-3. Upload a PNG from the browser's computer and inspect its converted preview.
-4. Click Start editing ID to acquire its edit lease, then Add to draft or Replace in draft. Changes also appear in your viewer.
-5. Optionally open a comparison archive using an absolute server path.
+3. Click Start editing ID to acquire its edit lease.
+4. Upload a PNG from the browser's computer. The converted record becomes a private draft and appears in your viewer.
+5. Optionally open `/gump/compare` and choose a configured reference library.
 6. Select a comparison row for side-by-side previews; copy the reference to the same or another ID.
 7. Publish a new complete MUL/IDX version, merging your drafts with the latest shared version. The workspace refreshes and releases your leases.
 
@@ -48,8 +56,8 @@ compression or RLE organization does not make images different when pixels and
 dimensions match. RGB values of fully transparent pixels are ignored. Read errors
 are reported per ID without stopping the full comparison. Results distinguish
 Equal, Different, Current only, Reference only and Unreadable. Difference filters,
-pagination, progress and cancellation are available. Importing, copying or undoing
-changes invalidates previous results; run the comparison again for the new state.
+pagination are available in WASM. The backend honors request cancellation.
+Results are snapshots; run the comparison again after edits or publication.
 
 ## Saving
 

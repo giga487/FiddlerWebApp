@@ -1,8 +1,8 @@
 # Fiddler engine modules
 
-The system separates binary containers, game resources and rendering. The webapp
-hosts the interface and composes reusable libraries that can also serve another
-site, a desktop tool or a headless process.
+The system separates binary containers, game resources and rendering. The
+standalone UOAS.Frontend runs the interface in WebAssembly; UOAS.Backend composes
+the reusable server libraries. See [split architecture](split-architecture.md).
 
 ```text
 src/
@@ -28,7 +28,11 @@ src/
     Animations/        # stable anchors, frame drawing, atlas and playback clock
     World/             # bounded isometric scenes, warnings and pixel hit testing
     Imaging/           # bitmaps, canvas drawing, thumbnails and PNG encoding
-  FiddlerWebApp/        # configuration, navigation and session workspaces
+  UOAS.Contracts/      # transport DTOs and product constants
+  UOAS.Presentation/   # UI-independent MVVM commands and ViewModels
+  UOAS.Frontend/       # standalone Blazor WASM views and SkiaSharp canvases
+  UOAS.Application/    # workspaces, per-ID leases and shared publishers
+  UOAS.Backend/        # ASP.NET Core API and collaboration session host
 ```
 
 ## Dependencies

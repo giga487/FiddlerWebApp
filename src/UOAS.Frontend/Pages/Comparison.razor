@@ -1,0 +1,15 @@
+@page "/gump/compare"
+@implements IDisposable
+@inject ComparisonViewModel ViewModel
+<PageTitle>Compare Gumps · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page"><div class="eyebrow">@ApplicationInfo.ShortName / ARCHIVE COMPARISON</div><h1>Compare and copy Gumps</h1>
+    <div class="tool-fields"><label>Reference library<select @bind="ViewModel.Library"><option value="">Select reference</option>@foreach (var library in ViewModel.Libraries) { <option value="@library.Id">@library.Name</option> }</select></label><CommandButton Command="ViewModel.CompareCommand" CssClass="primary">Compare libraries</CommandButton><label class="inline"><input type="checkbox" @bind="ViewModel.DifferencesOnly" @bind:after="ViewModel.FilterAsync" disabled="@(ViewModel.Result is null)" /> Differences only</label></div>
+    @if (ViewModel.Error is not null) { <p class="notice error">@ViewModel.Error</p> }
+    @if (ViewModel.Result is { } result)
+    {
+        <p>@string.Join(" · ", result.Counts.Select(pair => $"{pair.Key}: {pair.Value}"))</p><p class="muted">Comparison is a snapshot. Compare again after publishing to update differences.</p>
+        <div class="tool-columns"><div><div class="tool-output"><table><thead><tr><th>ID</th><th>Difference</th></tr></thead><tbody>@foreach (var row in result.Items) { <tr><td><button @onclick="() => ViewModel.SelectAsync(row)">@row.Id · @($"0x{row.Id:X4}")</button></td><td>@row.Difference @row.Detail</td></tr> }</tbody></table></div><div class="toolbar"><CommandButton Command="ViewModel.PreviousCommand">Previous</CommandButton><span>@(ViewModel.Page + 1) / @ViewModel.PageCount</span><CommandButton Command="ViewModel.NextCommand">Next</CommandButton></div></div>
+        <div>@if (ViewModel.Selected is not null) { <div class="tool-fields"><label>Destination Gump ID<input type="number" min="0" max="73727" @bind="ViewModel.TargetId" @bind:after="ViewModel.TargetChangedAsync" /></label><CommandButton Command="ViewModel.AcquireCommand">Lock destination ID</CommandButton><CommandButton Command="ViewModel.CopyCommand" CssClass="primary">Copy reference to draft</CommandButton></div><p class="lock-status">@(ViewModel.Owner is { } owner ? $"Locked by {owner.UserName}" : "Destination available")</p><h3>Destination</h3><SkiaPreview Png="ViewModel.CurrentPng" /><h3>Reference</h3><SkiaPreview Png="ViewModel.ReferencePng" /><a href="/gump">Review and publish drafts in Graphics</a> }</div></div>
+    }
+</section>
+@code { protected override void OnInitialized() => ViewModel.PropertyChanged += Updated; private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged); public void Dispose() => ViewModel.PropertyChanged -= Updated; }

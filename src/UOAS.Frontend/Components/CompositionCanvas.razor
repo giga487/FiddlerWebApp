@@ -1,0 +1,57 @@
+@using SkiaSharp
+@using SkiaSharp.Views.Blazor
+@implements IDisposable
+<div class="skia-stage composition-stage" @onpointerdown="Down" @onpointermove="Move" @onpointerup="Up" @onpointerleave="Up"><SKCanvasView @ref="surface" OnPaintSurface="Paint" /></div>
+@code {
+    [Parameter, EditorRequired] public CompositionViewModel ViewModel { get; set; } = null!;
+    private readonly Dictionary<int, SKBitmap> bitmaps = [];
+    private SKCanvasView? surface;
+    private float scale = 1, offsetX, offsetY, dragX, dragY;
+    private int? dragging;
+    private bool redraw = true;
+    private int Width => Math.Clamp(ViewModel.BoardWidth, 64, 2048);
+    private int Height => Math.Clamp(ViewModel.BoardHeight, 64, 2048);
+    protected override void OnParametersSet()
+    {
+        foreach (int key in bitmaps.Keys.Where(key => ViewModel.Pieces.All(piece => piece.Key != key)).ToArray()) { bitmaps[key].Dispose(); bitmaps.Remove(key); }
+        foreach (var piece in ViewModel.Pieces) if (!bitmaps.ContainsKey(piece.Key)) bitmaps[piece.Key] = SKBitmap.Decode(piece.Png);
+        redraw = true;
+    }
+    protected override void OnAfterRender(bool firstRender) { if (redraw) { redraw = false; surface?.Invalidate(); } }
+    private void Paint(SKPaintSurfaceEventArgs args)
+    {
+        scale = Math.Min(args.Info.Width / (float)Width, args.Info.Height / (float)Height);
+        offsetX = (args.Info.Width - Width * scale) / 2; offsetY = (args.Info.Height - Height * scale) / 2;
+        args.Surface.Canvas.Clear(new SKColor(215, 225, 228));
+        args.Surface.Canvas.Save(); args.Surface.Canvas.Translate(offsetX, offsetY); args.Surface.Canvas.Scale(scale);
+        DrawBoard(args.Surface.Canvas, true); args.Surface.Canvas.Restore();
+    }
+    private void DrawBoard(SKCanvas canvas, bool selection)
+    {
+        using var background = new SKPaint { Color = SKColors.White }; canvas.DrawRect(0, 0, Width, Height, background);
+        using var grid = new SKPaint { Color = new SKColor(225, 233, 235), StrokeWidth = 1 };
+        for (int x = 0; x < Width; x += 32) canvas.DrawLine(x, 0, x, Height, grid);
+        for (int y = 0; y < Height; y += 32) canvas.DrawLine(0, y, Width, y, grid);
+        canvas.Save(); canvas.ClipRect(new SKRect(0, 0, Width, Height));
+        foreach (var piece in ViewModel.Pieces)
+        {
+            canvas.DrawBitmap(bitmaps[piece.Key], piece.X, piece.Y);
+            if (selection && piece.Key == ViewModel.SelectedKey)
+            { using var paint = new SKPaint { Color = new SKColor(8, 127, 121), Style = SKPaintStyle.Stroke, StrokeWidth = 2 }; canvas.DrawRect(piece.X, piece.Y, piece.Width, piece.Height, paint); }
+        }
+        canvas.Restore();
+    }
+    private void Down(PointerEventArgs args)
+    {
+        float x = ((float)args.OffsetX - offsetX) / scale, y = ((float)args.OffsetY - offsetY) / scale;
+        var hit = ViewModel.Pieces.LastOrDefault(piece => x >= piece.X && x < piece.X + piece.Width && y >= piece.Y && y < piece.Y + piece.Height);
+        if (hit is null) return;
+        dragging = hit.Key; dragX = x - hit.X; dragY = y - hit.Y; ViewModel.Select(hit.Key);
+    }
+    private void Move(PointerEventArgs args)
+    { if (dragging is { } key) ViewModel.Move(key, ((float)args.OffsetX - offsetX) / scale - dragX, ((float)args.OffsetY - offsetY) / scale - dragY); }
+    private void Up(PointerEventArgs args) => dragging = null;
+    public byte[] Export()
+    { using var board = SKSurface.Create(new SKImageInfo(Width, Height)); DrawBoard(board.Canvas, false); using var image = board.Snapshot(); using var encoded = image.Encode(SKEncodedImageFormat.Png, 100); return encoded.ToArray(); }
+    public void Dispose() { foreach (var bitmap in bitmaps.Values) bitmap.Dispose(); }
+}

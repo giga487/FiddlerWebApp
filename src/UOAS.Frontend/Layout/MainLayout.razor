@@ -1,0 +1,32 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject WorkspaceViewModel ViewModel
+
+<header class="topbar"><a class="brand" href="/"><span>UO</span><strong>@ApplicationInfo.ShortName</strong><small>@ApplicationInfo.Name</small></a>
+    <nav aria-label="Main navigation"><NavLink href="/" Match="NavLinkMatch.All">Home</NavLink><NavLink href="/gump">Graphics</NavLink><NavLink href="/tiles">Land tiles</NavLink><NavLink href="/gump/composition">Compose</NavLink><NavLink href="/multi">Multis</NavLink><NavLink href="/animations">Animations</NavLink><NavLink href="/colors">Colors</NavLink><NavLink href="/resources">Resources</NavLink><NavLink href="/regions">Regions</NavLink><NavLink href="/plugins">Plugins</NavLink><NavLink href="/diagnostics">Diagnostics</NavLink></nav>
+    @if (ViewModel.HasSession) { <span class="session-name">@ViewModel.UserName</span><CommandButton Command="ViewModel.CloseCommand">End session</CommandButton> }
+</header>
+@if (!ViewModel.HasSession)
+{
+    <main class="welcome"><div class="eyebrow">@ApplicationInfo.ShortName / COLLABORATIVE ASSET WORKSHOP</div><h1>Make your mark on Britannia.</h1><p>Choose a name so other designers can see which resources you are editing.</p>
+        <form @onsubmit="ViewModel.StartSessionCommand.ExecuteAsync" @onsubmit:preventDefault><label>Your display name<input @bind="ViewModel.DisplayName" minlength="2" maxlength="60" placeholder="e.g. Marco" autofocus /></label><button class="primary" type="submit" disabled="@ViewModel.Busy">Enter the workshop →</button></form>
+        @if (ViewModel.Error is not null) { <p class="notice error" role="alert">@ViewModel.Error</p> }
+        <p class="muted">This name identifies your collaboration session. It is not a verified account. Each browser tab starts its own session.</p>
+    </main>
+}
+else
+{
+    <div class="workspacebar"><label>Asset library<select @bind="ViewModel.SelectedLibrary"><option value="">Select a library</option>@foreach (var library in ViewModel.Libraries) { <option value="@library.Id">@library.Name</option> }</select></label><CommandButton Command="ViewModel.OpenCommand">Open library</CommandButton><CommandButton Command="ViewModel.RefreshCommand">Refresh published assets</CommandButton>
+        @if (ViewModel.Workspace is { } workspace) { <span class="workspace-status">@workspace.DraftCount drafts · revision @workspace.SharedRevision</span> }
+        @if (ViewModel.Libraries.Count == 0) { <span class="muted">Configure Assets:Libraries on the backend to make a library available.</span> }
+    </div>
+    @if (ViewModel.Error is not null) { <div class="notice error" role="alert">@ViewModel.Error</div> }
+    @if (ViewModel.Notice is not null) { <div class="notice success" role="status">@ViewModel.Notice</div> }
+    <main>@Body</main>
+}
+
+@code {
+    protected override void OnInitialized() => ViewModel.PropertyChanged += Updated;
+    private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => ViewModel.PropertyChanged -= Updated;
+}

@@ -1,0 +1,67 @@
+@page "/gump"
+@page "/art/manage"
+@page "/gump/manage"
+@page "/tiles"
+@page "/maps"
+@implements IDisposable
+@inject WorkspaceViewModel ViewModel
+@inject IJSRuntime JavaScript
+@inject NavigationManager Navigation
+
+<PageTitle>Graphics · @ApplicationInfo.Name</PageTitle>
+<section class="graphics-workbench">
+    <div class="catalog-panel"><div class="eyebrow">@ApplicationInfo.ShortName / ASSET LIBRARY</div><h1>@(ViewModel.Kind == ResourceKind.Land ? "Land tile workshop" : "Graphics workshop")</h1><a href="/gump/compare">Compare and copy Gumps between libraries</a>
+        @if (ViewModel.Workspace is null) { <p>Select and open an asset library above.</p> }
+        else
+        {
+            <div class="toolbar"><label>Collection<select @bind="ViewModel.Kind" @bind:after="ViewModel.ChangeKindAsync" disabled="@ViewModel.Busy"><option value="@ResourceKind.Gump">Gumps</option><option value="@ResourceKind.Item">Items</option><option value="@ResourceKind.Land">Land</option></select></label>
+                <label>Find ID<input @bind="ViewModel.SearchId" placeholder="10 or 0x000A" /></label><CommandButton Command="ViewModel.FindCommand">Find</CommandButton><label class="inline"><input type="checkbox" @bind="ViewModel.ShowEmpty" @bind:after="ViewModel.ChangeFilterAsync" /> Empty slots</label></div>
+            <p class="muted">@ViewModel.Total.ToString("N0") slots · lock owners update every three seconds</p>
+            <div class="asset-grid">
+                @foreach (var tile in ViewModel.Tiles)
+                {
+                    <button class="asset-tile @(ViewModel.Selected?.Id == tile.Slot.Id ? "selected" : "")" @onclick="() => ViewModel.SelectAsync(tile.Slot.Id)" disabled="@ViewModel.Busy">
+                        <span class="thumbnail">@if (tile.Png is not null) { <img src="@DataUri(tile.Png)" alt="" /> } else { <span>@(tile.Slot.Empty ? "Empty slot" : "Unreadable")</span> }</span>
+                        <span class="asset-caption"><strong>@($"0x{tile.Slot.Id:X4}")</strong><span>@tile.Slot.Id @(tile.Slot.Draft ? "*" : "")</span></span>
+                        @if (tile.Slot.Lock is { } owner) { <span class="lock-badge @(owner.Own ? "own" : "other")">@(owner.Own ? "Editing: you" : $"Locked: {owner.UserName}")</span> }
+                    </button>
+                }
+            </div>
+            <div class="toolbar pagination"><CommandButton Command="ViewModel.PreviousCommand">Previous</CommandButton><span>@(ViewModel.Page + 1) / @ViewModel.PageCount</span><CommandButton Command="ViewModel.NextCommand">Next</CommandButton></div>
+        }
+    </div>
+    <aside class="editor-panel"><div class="eyebrow">INSPECTOR / EDITOR</div>
+        @if (ViewModel.Selected is not { } selected) { <h2>Select a resource</h2><p>Inspect a graphic or choose an empty ID to add one.</p> }
+        else
+        {
+            <h2>@selected.Kind @selected.Id <small>@($"0x{selected.Id:X4}")</small></h2>
+            <div class="lock-status @(selected.Lock is { Own: false } ? "other" : "")" role="status">@ViewModel.LockStatus</div>
+            <SkiaPreview Png="ViewModel.SelectedPng" />
+            <button @onclick="Download" disabled="@(ViewModel.SelectedPng is null)">Download PNG</button>
+            @if (selected.Empty) { <p class="muted">This is an empty slot. Acquire its lock to import a graphic.</p> }
+            @if (ViewModel.PreviewError is not null) { <p class="notice error">@ViewModel.PreviewError</p> }
+            <dl><dt>Dimensions</dt><dd>@selected.Width × @selected.Height</dd><dt>Draft</dt><dd>@(selected.Draft ? "Modified" : "Unchanged")</dd></dl>
+            <div class="toolbar"><CommandButton Command="ViewModel.AcquireCommand" CssClass="primary">Start editing ID</CommandButton><CommandButton Command="ViewModel.ReleaseCommand">Release ID</CommandButton></div>
+            <label class="upload">Import PNG into this ID<InputFile OnChange="Upload" accept="image/png" disabled="@(!ViewModel.OwnsSelection || ViewModel.Busy)" /></label>
+            <p class="muted">Maximum 8 MiB. Editing is enforced on the backend. Other designers can view a locked resource, but cannot change it.</p>
+            <div class="toolbar"><CommandButton Command="ViewModel.RemoveCommand">Remove ID</CommandButton><CommandButton Command="ViewModel.DiscardCommand">Undo and release ID</CommandButton></div>
+            <CommandButton Command="ViewModel.PublishCommand" CssClass="primary publish">Publish new archive version</CommandButton>
+        }
+        <h3>Active resource locks</h3>
+        @if (ViewModel.Locks.Count == 0) { <p class="muted">No resources are being edited.</p> }
+        @foreach (var owner in ViewModel.Locks) { <div class="lock-row"><strong>@owner.Kind @owner.Id</strong><span>@owner.UserName @(owner.Own ? "(you)" : "")</span><small>until @owner.ExpiresAt.LocalDateTime.ToString("HH:mm:ss")</small></div> }
+    </aside>
+</section>
+
+@code {
+    private async Task Download() { if (ViewModel.SelectedPng is { } png) await JavaScript.InvokeVoidAsync("uoas.download", $"{ViewModel.Kind}-{ViewModel.Selected!.Id}.png", Convert.ToBase64String(png)); }
+    protected override void OnInitialized() => ViewModel.PropertyChanged += Updated;
+    private string? lastRoute;
+    protected override async Task OnParametersSetAsync()
+    { if (lastRoute == Navigation.Uri) return; bool tiles = Navigation.Uri.EndsWith("/tiles") || Navigation.Uri.EndsWith("/maps"); bool wasTiles = lastRoute?.EndsWith("/tiles") == true || lastRoute?.EndsWith("/maps") == true; lastRoute = Navigation.Uri; if (tiles || wasTiles) { ViewModel.Kind = tiles ? ResourceKind.Land : ResourceKind.Gump; await ViewModel.ChangeKindAsync(); } }
+    private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    private static string DataUri(byte[] bytes) => "data:image/png;base64," + Convert.ToBase64String(bytes);
+    private async Task Upload(InputFileChangeEventArgs args)
+    { await using var input = args.File.OpenReadStream(8 * 1024 * 1024); using var buffer = new MemoryStream(); await input.CopyToAsync(buffer); await ViewModel.UploadAsync(buffer.ToArray()); }
+    public void Dispose() => ViewModel.PropertyChanged -= Updated;
+}

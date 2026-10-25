@@ -1,0 +1,14 @@
+@page "/users"
+@implements IDisposable
+@inject WorkspaceViewModel ViewModel
+<PageTitle>Collaboration · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page"><div class="eyebrow">@ApplicationInfo.ShortName / COLLABORATION</div><h1>Resource locks</h1><p>Your session: <strong>@ViewModel.UserName</strong>. Locks belong to one workspace in one browser session.</p>
+    <div class="tool-output"><table><thead><tr><th>Resource</th><th>ID</th><th>Designer</th><th>Expiry</th></tr></thead><tbody>
+        @foreach (var owner in ViewModel.Locks) { <tr><td>@owner.Kind</td><td>@owner.Id</td><td>@owner.UserName @(owner.Own ? "(you)" : "")</td><td>@owner.ExpiresAt.LocalDateTime.ToString("HH:mm:ss")</td></tr> }
+    </tbody></table></div><p class="muted">Locks renew while a session is active and expire after two minutes without renewal. Ending a session releases its locks.</p>
+</section>
+@code {
+    protected override void OnInitialized() => ViewModel.PropertyChanged += Updated;
+    private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => ViewModel.PropertyChanged -= Updated;
+}

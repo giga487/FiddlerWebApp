@@ -1,0 +1,46 @@
+@using SkiaSharp
+@using SkiaSharp.Views.Blazor
+@using UOAS.Presentation.Services
+@implements IDisposable
+<div class="skia-stage"><SKCanvasView @ref="surface" OnPaintSurface="Paint" /></div>
+@code {
+    [Parameter, EditorRequired] public byte[] Png { get; set; } = [];
+    [Parameter] public IReadOnlyList<ushort> Colors { get; set; } = [];
+    [Parameter] public bool GrayOnly { get; set; }
+    [Parameter] public string Background { get; set; } = "Checkerboard";
+    [Parameter] public int Zoom { get; set; } = 2;
+    private SKCanvasView? surface;
+    private SKBitmap? original, tinted;
+    private byte[]? previous;
+    private ushort[] palette = [];
+    private bool previousGray, dirty;
+    protected override void OnParametersSet()
+    {
+        bool newImage = !ReferenceEquals(previous, Png);
+        if (newImage) { previous = Png; original?.Dispose(); original = SKBitmap.Decode(Png); }
+        if (newImage || previousGray != GrayOnly || !palette.SequenceEqual(Colors))
+        {
+            previousGray = GrayOnly; palette = Colors.ToArray(); tinted?.Dispose(); tinted = original?.Copy();
+            if (tinted is not null && palette.Length == 32)
+            {
+                var pixels = tinted.Pixels;
+                for (int i = 0; i < pixels.Length; i++) pixels[i] = new SKColor(PaletteMath.Apply((uint)pixels[i], palette, GrayOnly));
+                tinted.Pixels = pixels;
+            }
+        }
+        dirty = true;
+    }
+    protected override void OnAfterRender(bool firstRender) { if (dirty) { dirty = false; surface?.Invalidate(); } }
+    private void Paint(SKPaintSurfaceEventArgs args)
+    {
+        var canvas = args.Surface.Canvas; canvas.Clear(Background == "Dark" ? new SKColor(25, 29, 34) : SKColors.White);
+        if (Background == "Checkerboard") { using var paint = new SKPaint { Color = new SKColor(210, 216, 220) }; for (int y = 0; y < args.Info.Height; y += 16) for (int x = 0; x < args.Info.Width; x += 16) if ((x / 16 + y / 16) % 2 == 0) canvas.DrawRect(x, y, 16, 16, paint); }
+        if (original is null || tinted is null) return;
+        float half = args.Info.Width / 2f;
+        float scale = Math.Min(Zoom, Math.Min((half - 16) / original.Width, (args.Info.Height - 24f) / original.Height));
+        float w = original.Width * scale, h = original.Height * scale, top = (args.Info.Height - h) / 2;
+        canvas.DrawBitmap(original, new SKRect((half - w) / 2, top, (half + w) / 2, top + h));
+        canvas.DrawBitmap(tinted, new SKRect(half + (half - w) / 2, top, half + (half + w) / 2, top + h));
+    }
+    public void Dispose() { original?.Dispose(); tinted?.Dispose(); }
+}

@@ -1,0 +1,1 @@
+{ "profiles": { "UOAS.Frontend": { "commandName": "Project", "launchBrowser": false, "applicationUrl": "http://localhost:5178", "environmentVariables": { "ASPNETCORE_ENVIRONMENT": "Development" } } } }

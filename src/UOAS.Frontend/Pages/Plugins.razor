@@ -1,0 +1,19 @@
+@page "/plugins"
+@implements IDisposable
+@inject PluginsViewModel ViewModel
+<PageTitle>Plugins · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page"><div class="eyebrow">@ApplicationInfo.ShortName / EXTENSIONS</div><h1>Server plugins</h1>
+<p>Upload a DLL or ZIP package. A server operator must approve its exact SHA256 in <code>Plugins:TrustedPackageHashes</code> before it can be activated. Approved plugins execute server code.</p>
+<div class="tool-fields"><label>Entry DLL inside ZIP<input @bind="ViewModel.EntryAssembly" placeholder="Plugin.dll" /></label><label>Upload package (8 MiB maximum)<InputFile OnChange="Upload" accept=".dll,.zip" disabled="@ViewModel.Busy" /></label><button @onclick="ViewModel.RefreshAsync" disabled="@ViewModel.Busy">Refresh packages</button></div>
+@if (ViewModel.Error is not null) { <p class="notice error">@ViewModel.Error</p> }
+<div class="tool-fields"><label>Command input<select @bind="ViewModel.Kind">@foreach (var kind in Enum.GetValues<ResourceKind>()) { <option value="@kind">@kind</option> }</select></label><label>Resource ID<input type="number" min="0" @bind="ViewModel.Id" /></label></div>
+@foreach (var package in ViewModel.Packages)
+{ <article class="tool-output"><h2>@(package.Name ?? package.FileName) @package.Version</h2><p>@package.Description</p><p><strong>@(package.Active ? "Active" : package.Trusted ? "Trusted · inactive" : "Quarantined · awaiting operator approval")</strong> · @package.EntryAssembly</p><p class="package-hash">SHA256: <code>@package.Sha256</code></p><div class="toolbar"><button @onclick="() => ViewModel.ActivateAsync(package)" disabled="@(ViewModel.Busy || !package.Trusted || package.Active)">Activate</button><button @onclick="() => ViewModel.DeactivateAsync(package)" disabled="@(ViewModel.Busy || !package.Active)">Deactivate</button><button @onclick="() => ViewModel.RemoveAsync(package)" disabled="@(ViewModel.Busy || package.Active)">Remove package</button>@foreach (var command in package.Commands) { <button @onclick="() => ViewModel.ExecuteAsync(package, command.Id)" disabled="@(ViewModel.Busy || !package.Active)" title="@command.Description">@command.Name</button> }</div></article> }
+@if (ViewModel.Output is not null) { <h2>Command result</h2><pre class="tool-output">@ViewModel.Output</pre> }
+<p class="muted">Commands receive a detached image snapshot. Uploading a package does not execute its code. Activation is temporary and must be repeated after a server restart.</p></section>
+@code {
+    protected override async Task OnInitializedAsync() { ViewModel.PropertyChanged += Updated; await ViewModel.RefreshAsync(); }
+    private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    private async Task Upload(InputFileChangeEventArgs args) { await using var source = args.File.OpenReadStream(8 * 1024 * 1024); using var buffer = new MemoryStream(); await source.CopyToAsync(buffer); await ViewModel.InstallAsync(args.File.Name, buffer.ToArray()); }
+    public void Dispose() => ViewModel.PropertyChanged -= Updated;
+}

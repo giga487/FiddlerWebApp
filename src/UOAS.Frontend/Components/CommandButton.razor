@@ -1,0 +1,16 @@
+@implements IDisposable
+<button type="button" disabled="@(!Command.CanExecute(null))" @onclick="Command.ExecuteAsync" class="@CssClass">@ChildContent</button>
+@code {
+    [Parameter, EditorRequired] public AsyncCommand Command { get; set; } = null!;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+    private AsyncCommand? observed;
+    protected override void OnParametersSet()
+    {
+        if (observed == Command) return;
+        if (observed is not null) observed.CanExecuteChanged -= Changed;
+        observed = Command; observed.CanExecuteChanged += Changed;
+    }
+    private void Changed(object? sender, EventArgs args) => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() { if (observed is not null) observed.CanExecuteChanged -= Changed; }
+}

@@ -1,0 +1,43 @@
+@using SkiaSharp
+@using SkiaSharp.Views.Blazor
+@implements IDisposable
+<div class="canvas-toolbar"><button @onclick="() => ZoomBy(1.25f)">Zoom +</button><button @onclick="() => ZoomBy(.8f)">Zoom −</button><button @onclick="Reset">Fit</button><span>SkiaSharp · local zoom and pan</span></div>
+<div class="skia-stage" @onwheel="Wheel" @onwheel:preventDefault @onpointerdown="Down" @onpointermove="Move" @onpointerup="Up" @onpointerleave="Up">
+    <SKCanvasView @ref="surface" OnPaintSurface="Paint" />
+</div>
+@code {
+    [Parameter] public byte[]? Png { get; set; }
+    private byte[]? previous;
+    private SKBitmap? bitmap;
+    private SKCanvasView? surface;
+    private float zoom = 1, panX, panY;
+    private double lastX, lastY;
+    private bool dragging, redraw;
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(Png, previous)) return;
+        previous = Png; bitmap?.Dispose(); bitmap = Png is null ? null : SKBitmap.Decode(Png); zoom = 1; panX = panY = 0; redraw = true;
+    }
+    protected override void OnAfterRender(bool firstRender) { if (redraw) { redraw = false; surface?.Invalidate(); } }
+    private void Paint(SKPaintSurfaceEventArgs args)
+    {
+        var canvas = args.Surface.Canvas; canvas.Clear(new SKColor(234, 239, 240));
+        using var paint = new SKPaint { Color = new SKColor(218, 226, 229) };
+        for (int y = 0; y < args.Info.Height; y += 16) for (int x = 0; x < args.Info.Width; x += 16)
+            if ((x / 16 + y / 16) % 2 == 0) canvas.DrawRect(x, y, 16, 16, paint);
+        if (bitmap is null) return;
+        float fit = Math.Min((args.Info.Width - 32f) / bitmap.Width, (args.Info.Height - 32f) / bitmap.Height);
+        float scale = Math.Min(fit, 4) * zoom;
+        float left = (args.Info.Width - bitmap.Width * scale) / 2 + panX;
+        float top = (args.Info.Height - bitmap.Height * scale) / 2 + panY;
+        canvas.DrawBitmap(bitmap, new SKRect(left, top, left + bitmap.Width * scale, top + bitmap.Height * scale));
+    }
+    private void ZoomBy(float factor) { zoom = Math.Clamp(zoom * factor, .1f, 32); surface?.Invalidate(); }
+    private void Reset() { zoom = 1; panX = panY = 0; surface?.Invalidate(); }
+    private void Wheel(WheelEventArgs args) => ZoomBy(args.DeltaY < 0 ? 1.1f : .9f);
+    private void Down(PointerEventArgs args) { dragging = true; lastX = args.ClientX; lastY = args.ClientY; }
+    private void Move(PointerEventArgs args)
+    { if (!dragging) return; panX += (float)(args.ClientX - lastX); panY += (float)(args.ClientY - lastY); lastX = args.ClientX; lastY = args.ClientY; surface?.Invalidate(); }
+    private void Up(PointerEventArgs args) => dragging = false;
+    public void Dispose() => bitmap?.Dispose();
+}

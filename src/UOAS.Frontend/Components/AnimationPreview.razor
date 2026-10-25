@@ -1,0 +1,39 @@
+@using SkiaSharp
+@using SkiaSharp.Views.Blazor
+@implements IAsyncDisposable
+<div class="canvas-toolbar"><button @onclick="() => playing = !playing">@(playing ? "Pause" : "Play")</button><button @onclick="Back">Previous frame</button><button @onclick="Step">Next frame</button><label>Frame<input type="range" min="0" max="@(Math.Max(0, Atlas.FrameCount - 1))" @bind="frame" @bind:after="Redraw" /></label><label>Delay (ms)<input type="number" min="40" max="1000" @bind="delay" /></label><label class="inline"><input type="checkbox" @bind="repeat" /> Loop</label><label>Zoom<select @bind="zoom" @bind:after="Redraw"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></label><span>Frame @(frame + 1) / @Atlas.FrameCount · local playback</span></div>
+<div class="skia-stage"><SKCanvasView @ref="surface" OnPaintSurface="Paint" /></div>
+@code {
+    [Parameter, EditorRequired] public AnimationAtlas Atlas { get; set; } = null!;
+    [Parameter] public byte[]? Png { get; set; }
+    private byte[]? previous;
+    private SKBitmap? bitmap;
+    private SKCanvasView? surface;
+    private int frame, delay = 150, zoom = 2;
+    private bool repeat = true;
+    private bool playing = true, redraw = true;
+    private readonly CancellationTokenSource lifetime = new();
+    private Task? loop;
+    protected override void OnParametersSet()
+    { if (ReferenceEquals(previous, Png)) return; previous = Png; bitmap?.Dispose(); bitmap = Png is null ? null : SKBitmap.Decode(Png); frame = 0; redraw = true; }
+    protected override void OnAfterRender(bool firstRender) { if (firstRender) loop = Animate(); if (redraw) { redraw = false; surface?.Invalidate(); } }
+    private async Task Animate()
+    {
+        try { while (!lifetime.IsCancellationRequested) { await Task.Delay(Math.Clamp(delay, 40, 1000), lifetime.Token); if (playing) await InvokeAsync(Step); } }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+    }
+    private void Redraw() { surface?.Invalidate(); StateHasChanged(); }
+    private void Back() { frame = (frame + Math.Max(1, Atlas.FrameCount) - 1) % Math.Max(1, Atlas.FrameCount); Redraw(); }
+    private void Step() { if (frame + 1 >= Atlas.FrameCount && !repeat) { playing = false; Redraw(); return; } frame = (frame + 1) % Math.Max(1, Atlas.FrameCount); Redraw(); }
+    private void Paint(SKPaintSurfaceEventArgs args)
+    {
+        var canvas = args.Surface.Canvas; canvas.Clear(new SKColor(233, 239, 241));
+        if (bitmap is null) return;
+        int x = frame % Atlas.Columns * Atlas.FrameWidth, y = frame / Atlas.Columns * Atlas.FrameHeight;
+        float scale = zoom;
+        float w = Atlas.FrameWidth * scale, h = Atlas.FrameHeight * scale;
+        var destination = new SKRect((args.Info.Width - w) / 2, (args.Info.Height - h) / 2, (args.Info.Width + w) / 2, (args.Info.Height + h) / 2);
+        canvas.DrawBitmap(bitmap, new SKRect(x, y, x + Atlas.FrameWidth, y + Atlas.FrameHeight), destination);
+    }
+    public async ValueTask DisposeAsync() { lifetime.Cancel(); if (loop is not null) await loop; bitmap?.Dispose(); lifetime.Dispose(); }
+}

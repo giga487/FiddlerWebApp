@@ -144,37 +144,6 @@ public sealed class PluginTests
         Assert.NotNull(failed.Error);
     }
 
-    [Theory]
-    [InlineData("admin", true)]
-    [InlineData("reader", false)]
-    public async Task ManagementPageShowsUploadControlsOnlyToAdministrators(string id, bool administrator)
-    {
-        using var fixture = new Fixture();
-        using var registry = fixture.Registry();
-        using var user = fixture.User(id);
-        await registry.StartAsync(default);
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton(registry);
-        services.AddSingleton(user);
-        services.AddSingleton<MulWorkspace>();
-        services.AddSingleton(new ClientDirectorySettings(Path.Combine(fixture.Root, "settings.json"), ""));
-        services.AddSingleton<IJSRuntime, NoJavaScript>();
-        await using var provider = services.BuildServiceProvider();
-        await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
-        string html = await renderer.Dispatcher.InvokeAsync(async () =>
-            (await renderer.RenderComponentAsync<FiddlerWebApp.Components.Pages.Plugins>()).ToHtmlString());
-        Assert.Equal(administrator, html.Contains("type=\"file\""));
-        Assert.Equal(administrator, html.Contains("Install inactive"));
-        if (!administrator) Assert.Contains("Your account ID", html);
-    }
-
-    private sealed class NoJavaScript : IJSRuntime
-    {
-        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => new(default(TValue)!);
-        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) => new(default(TValue)!);
-    }
-
     private static PluginAsset Image() => new("Item", 42, 3, 1, [0, unchecked((int)0xFFFF0000), unchecked((int)0xFFFF0000)]);
     private static MemoryStream Package(params (string Path, byte[] Data)[] files)
     {

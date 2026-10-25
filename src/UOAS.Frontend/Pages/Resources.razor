@@ -1,0 +1,66 @@
+@page "/resources"
+@page "/fonts"
+@page "/cliloc"
+@page "/tiledata"
+@page "/colors"
+@implements IDisposable
+@inject DocumentViewModel ViewModel
+<PageTitle>Resource editors · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page"><div class="eyebrow">@ApplicationInfo.ShortName / RESOURCE EDITORS</div><h1>Fonts, hues & metadata</h1>
+    <div class="tool-fields"><CommandButton Command="ViewModel.FilesCommand">Find available documents</CommandButton><label>File<select @bind="ViewModel.FileIndex">@for (int index = 0; index < ViewModel.AvailableFiles.Count; index++) { var file = ViewModel.AvailableFiles[index]; <option value="@index">@file.Kind · @file.FileName</option> }</select></label><CommandButton Command="ViewModel.OpenCommand">Open document</CommandButton></div>
+    @if (ViewModel.Error is not null) { <p class="notice error" role="alert">@ViewModel.Error</p> }
+    @if (ViewModel.Notice is not null) { <p class="notice success">@ViewModel.Notice</p> }
+    @if (ViewModel.Document is { } document)
+    {
+        <p>@document.FileName · @document.DraftCount drafts · revision @document.Revision</p>
+        @if (document.Kind == DocumentKind.Font) { <div class="tool-fields"><label>Font index<input type="number" min="0" max="19" @bind="ViewModel.FontIndex" /></label><label>Character<input maxlength="1" @bind="ViewModel.Character" /></label><button @onclick="ViewModel.FindGlyphAsync">Find glyph</button><label>Sample text<input maxlength="512" @bind="ViewModel.PreviewText" /></label><button @onclick="ViewModel.PreviewTextAsync">Preview text</button></div>@if (ViewModel.TextPreview is not null) { <SkiaPreview Png="ViewModel.TextPreview" /> } }
+        <div class="tool-fields"><label>Text / name search<input @bind="ViewModel.Search" /></label><CommandButton Command="ViewModel.SearchCommand">Search records</CommandButton><CommandButton Command="ViewModel.RefreshCommand">Refresh shared records</CommandButton><button @onclick="CloseDocument">Close document</button></div>
+        <div class="tool-fields"><label>Record ID<input type="number" min="0" @bind="ViewModel.RecordId" /></label><CommandButton Command="ViewModel.FindCommand">Find / create ID</CommandButton><CommandButton Command="ViewModel.PublishCommand" CssClass="primary">Publish document</CommandButton></div>
+        <div class="tool-columns"><div><div class="asset-grid">
+            @foreach (var record in ViewModel.Records)
+            { <button @onclick="() => ViewModel.SelectAsync(record.Id)"><strong>@record.Id @(record.Draft ? "*" : "")</strong>@if (record.Lock is { } owner) { <span class="lock-badge @(owner.Own ? "own" : "other")">@owner.UserName</span> }</button> }
+        </div><div class="toolbar"><CommandButton Command="ViewModel.PreviousCommand">Previous</CommandButton><span>@(ViewModel.Page + 1) / @ViewModel.PageCount</span><CommandButton Command="ViewModel.NextCommand">Next</CommandButton></div></div>
+        <div class="tool-output">
+            @if (ViewModel.Selected is { } selected)
+            {
+                <h2>Record @selected.Id</h2><p class="lock-status @(selected.Lock is { Own: false } ? "other" : "")">@(selected.Lock is null ? "Available for editing" : selected.Lock.Own ? $"Locked by you ({selected.Lock.UserName})" : $"Locked by {selected.Lock.UserName} · read only")</p>
+                <div class="toolbar"><CommandButton Command="ViewModel.AcquireCommand">Start editing ID</CommandButton><CommandButton Command="ViewModel.ReleaseCommand">Release ID</CommandButton><CommandButton Command="ViewModel.DiscardCommand">Undo and release</CommandButton></div>
+                @if (document.Kind == DocumentKind.Cliloc) { <label>Localized text<textarea class="resource-json" @bind="ViewModel.Text" disabled="@(!ViewModel.OwnsSelection)"></textarea></label><label>Flag<input type="number" min="0" max="255" @bind="ViewModel.Flag" disabled="@(!ViewModel.OwnsSelection)" /></label> }
+                @if (document.Kind is DocumentKind.Hue or DocumentKind.TileDataLand or DocumentKind.TileDataItem) { <label>Name<input @bind="ViewModel.Name" disabled="@(!ViewModel.OwnsSelection)" /></label> }
+                @if (document.Kind is DocumentKind.TileDataItem or DocumentKind.TileDataLand) { <label>Flags (decimal or 0x…)<input @bind="ViewModel.Flags" disabled="@(!ViewModel.OwnsSelection)" /></label> }
+                @if (document.Kind is DocumentKind.TileDataItem or DocumentKind.TileDataLand)
+                {
+                    <div class="tool-fields">@foreach (var flag in KnownFlags) { <label class="inline"><input type="checkbox" checked="@ViewModel.HasFlag(flag.Mask)" @onchange="args => ViewModel.ToggleFlag(flag.Mask, args.Value is true)" disabled="@(!ViewModel.OwnsSelection)" />@flag.Name</label> }</div>
+                    <div class="tool-fields">@foreach (var field in document.Kind == DocumentKind.TileDataLand ? LandFields : ItemFields) { <label>@field.Label<input type="number" min="@field.Min" max="@field.Max" value="@ViewModel.NumericField(field.Key)" @onchange="args => ViewModel.SetNumericField(field.Key, args.Value?.ToString())" disabled="@(!ViewModel.OwnsSelection)" /></label> }</div>
+                }
+                @if (document.Kind == DocumentKind.Hue)
+                { <div class="toolbar">@for (int index = 0; index < ViewModel.HueColors().Count; index++) { int colorIndex = index; <input type="color" aria-label="Hue sample @index" value="@ViewModel.HueColors()[index]" @onchange="args => ViewModel.SetHueColor(colorIndex, args.Value?.ToString() ?? string.Empty)" disabled="@(!ViewModel.OwnsSelection)" /> }</div> }
+                @if (document.Kind == DocumentKind.Hue)
+                {
+                    <fieldset disabled="@(!ViewModel.OwnsSelection)"><legend>Palette tools</legend><div class="tool-fields"><label>Shadow<input type="color" @bind="ViewModel.Shadow" /></label><label>Middle<input type="color" @bind="ViewModel.Middle" /></label><label>Highlight<input type="color" @bind="ViewModel.Highlight" /></label><button @onclick="ViewModel.GenerateHue">Generate gradient</button><button @onclick="ViewModel.UndoHue">Undo palette edit</button><label>Copy colors from hue ID<input type="number" min="1" @bind="ViewModel.CopyHueId" /></label><button @onclick="ViewModel.CopyHueAsync">Copy colors</button></div></fieldset>
+                    <p class="muted">To create a hue, find ID @(document.Count + 1), acquire its lock, then generate or copy its palette.</p>
+                }
+                @if (document.Kind == DocumentKind.Font) { <SkiaPreview Png="ViewModel.Preview" /><label>Replace glyph PNG<InputFile OnChange="UploadGlyph" accept="image/png" disabled="@(!ViewModel.OwnsSelection)" /></label><p class="muted">For ASCII fonts, record ID = font index × 65536 + character code. Unicode fonts use the character code directly.</p> }
+                @if (document.Kind == DocumentKind.Font) { <div class="tool-fields">@foreach (var key in new[] { "xOffset", "yOffset" }) { <label>@key<input type="number" min="-128" max="127" value="@ViewModel.NumericField(key)" @onchange="args => ViewModel.SetNumericField(key, args.Value?.ToString())" disabled="@(!ViewModel.OwnsSelection)" /></label> }<button @onclick="DownloadGlyph" disabled="@(ViewModel.Preview is null)">Export glyph PNG</button></div> }
+                <details><summary>Structured record</summary><textarea class="resource-json" @bind="ViewModel.JsonText" disabled="@(!ViewModel.OwnsSelection)"></textarea></details>
+                <CommandButton Command="ViewModel.SaveCommand" CssClass="primary">Save record draft</CommandButton>
+            }
+            else { <p>Select a record or enter its ID above.</p> }
+        </div></div>
+        @if (document.Kind == DocumentKind.Hue && ViewModel.Selected is not null) { <ColorBoard /> }
+    }
+</section>
+@code {
+    [Inject] public UOAS.Presentation.Services.IAssetApi Api { get; set; } = null!;
+    [Inject] public IJSRuntime JS { get; set; } = null!;
+    private sealed record Field(string Key, string Label, int Min = 0, int Max = 255);
+    private static readonly Field[] LandFields = [new("textureId", "Texture ID", 0, 65535)];
+    private static readonly Field[] ItemFields = [new("weight", "Weight"), new("quality", "Quality / layer"), new("miscData", "Miscellaneous", -32768, 32767), new("unknown2", "Unknown 2"), new("quantity", "Quantity"), new("animation", "Animation ID", 0, 65535), new("unknown3", "Unknown 3"), new("hue", "Hue"), new("stackingOffset", "Stacking offset"), new("value", "Value"), new("height", "Height")];
+    private static readonly (string Name, ulong Mask)[] KnownFlags = [("Background", 1), ("Weapon", 2), ("Transparent", 4), ("Translucent", 8), ("Wall", 0x10), ("Damaging", 0x20), ("Impassable", 0x40), ("Wet", 0x80), ("Surface", 0x200), ("Bridge", 0x400), ("Stackable", 0x800), ("Window", 0x1000), ("No shoot", 0x2000), ("Foliage", 0x20000), ("Partial hue", 0x40000), ("Container", 0x200000), ("Wearable", 0x400000), ("Light source", 0x800000), ("Animation", 0x1000000), ("Roof", 0x10000000), ("Door", 0x20000000)];
+    private async Task CloseDocument() { await ViewModel.CloseAsync(); }
+    private async Task DownloadGlyph() { if (ViewModel.Preview is { } png) await JS.InvokeVoidAsync("uoas.download", $"glyph-{ViewModel.Selected!.Id}.png", Convert.ToBase64String(png)); }
+    protected override void OnInitialized() => ViewModel.PropertyChanged += Updated;
+    private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    private async Task UploadGlyph(InputFileChangeEventArgs args) { await using var input = args.File.OpenReadStream(8 * 1024 * 1024); using var memory = new MemoryStream(); await input.CopyToAsync(memory); await ViewModel.UploadGlyphAsync(memory.ToArray()); }
+    public void Dispose() => ViewModel.PropertyChanged -= Updated;
+}

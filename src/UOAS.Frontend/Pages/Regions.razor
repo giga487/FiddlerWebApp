@@ -1,0 +1,48 @@
+@page "/regions"
+@implements IDisposable
+@inject RegionsViewModel ViewModel
+@inject IJSRuntime JavaScript
+<PageTitle>Server regions · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page" aria-busy="@ViewModel.Busy.ToString().ToLowerInvariant()"><div class="eyebrow">@ApplicationInfo.ShortName / SERVER DEFINITIONS</div><h1>Server regions</h1>
+<p>Edit static ModernUO region definitions. The preview shows region boundaries in server coordinates.</p>
+<div class="tool-fields"><CommandButton Command="ViewModel.SourcesCommand">Find region sources</CommandButton><label>Server source<select @bind="ViewModel.Source" disabled="@(ViewModel.Catalog is not null)"><option value="">Select a source</option>@foreach (var source in ViewModel.Sources) { <option value="@source.Id">@source.Name</option> }</select></label><CommandButton Command="ViewModel.OpenCommand" CssClass="primary">Open regions</CommandButton><CommandButton Command="ViewModel.CloseCommand">Close catalog</CommandButton></div>
+@if (ViewModel.Sources.Count == 0) { <p class="muted">The backend operator configures Regions:Sources with the server's Data/regions.json path.</p> }
+@if (ViewModel.Error is not null) { <p class="notice error" role="alert">@ViewModel.Error</p> }
+@if (ViewModel.Notice is not null) { <p class="notice success" role="status">@ViewModel.Notice</p> }
+@if (ViewModel.Catalog is { } catalog)
+{
+<p>@catalog.Name · @catalog.Count regions · @catalog.DraftCount drafts · revision @catalog.Revision</p>
+<div class="tool-fields"><label>Map filter<select @bind="ViewModel.MapFilter"><option value="">All maps</option>@foreach (string map in catalog.Maps) { <option>@map</option> }</select></label><label>Name / type search<input @bind="ViewModel.Search" /></label><CommandButton Command="ViewModel.SearchCommand">Search regions</CommandButton><CommandButton Command="ViewModel.NewCommand">New region</CommandButton><CommandButton Command="ViewModel.RefreshCommand">Refresh published regions</CommandButton><CommandButton Command="ViewModel.PublishCommand" CssClass="primary">Publish regions</CommandButton><button @onclick="Download" disabled="@ViewModel.Busy">Download regions.json</button></div>
+<div class="tool-columns"><div><div class="tool-output"><table><thead><tr><th>Region</th><th>Map / type</th><th>Lock owner</th></tr></thead><tbody>@foreach (var row in ViewModel.Rows) { <tr class="@(row.Deleted ? "region-deleted" : "")"><td><button disabled="@ViewModel.Busy" @onclick="() => ViewModel.SelectAsync(row.Id)">@(row.Name.Length == 0 ? $"Unnamed region {row.Id}" : row.Name)</button><small>ID @row.Id @(row.Deleted ? "· pending deletion" : row.Draft ? "· draft" : "")</small>@if (row.ParentName is not null) { <small>Parent: @row.ParentName</small> }</td><td>@row.Map<small>@row.Type · priority @row.Priority</small></td><td>@(row.Lock is { } owner ? owner.UserName + (owner.Own ? " (you)" : "") : "Available")</td></tr> }</tbody></table></div><div class="toolbar"><CommandButton Command="ViewModel.PreviousCommand">Previous</CommandButton><span>@(ViewModel.Page + 1) / @ViewModel.PageCount</span><CommandButton Command="ViewModel.NextCommand">Next</CommandButton></div></div>
+<div class="tool-output">
+@if (ViewModel.Selected is { } selected)
+{
+<h2>@(selected.Summary.Name.Length == 0 ? "Unnamed region" : selected.Summary.Name) <small>ID @selected.Summary.Id</small></h2>
+<p class="lock-status @(selected.Summary.Lock is { Own: false } ? "other" : "")">@(!ViewModel.LiveLocksKnown ? "Lock status unavailable · read only" : selected.Summary.Lock is { } held ? $"Locked by {held.UserName}" + (held.Own ? " (you)" : " · read only") : "Available for editing")</p>
+<div class="toolbar"><CommandButton Command="ViewModel.AcquireCommand">Start editing region</CommandButton><CommandButton Command="ViewModel.ReleaseCommand">Release region</CommandButton><CommandButton Command="ViewModel.UndoCommand">Undo and release region</CommandButton></div>
+<RegionCanvas Volumes="ViewModel.Area" />
+<fieldset disabled="@(!ViewModel.OwnsSelection || ViewModel.Busy)"><legend>Region definition</legend>
+<div class="tool-fields"><label>Name<input maxlength="200" @bind="ViewModel.Name" /></label><label>Map<select @bind="ViewModel.Map">@foreach (string map in catalog.Maps) { <option>@map</option> }</select></label><label>Server type<select @bind="ViewModel.Type">@foreach (string type in catalog.Types) { <option>@type</option> }</select></label><label>Priority<input type="number" @bind="ViewModel.Priority" /></label><label>Parent name (empty = none)<input @bind="ViewModel.ParentName" /></label><label>Parent map<select @bind="ViewModel.ParentMap">@foreach (string map in catalog.Maps) { <option>@map</option> }</select></label></div>
+<h3>Volumes</h3><p class="muted">Bounds are half-open: X1/Y1/Z1 included, X2/Y2/Z2 excluded. A region can contain multiple volumes.</p>
+<div class="region-volumes">@for (int index = 0; index < ViewModel.Area.Count; index++) { int volumeIndex = index; var volume = ViewModel.Area[index]; int[] coordinates = [volume.X1, volume.Y1, volume.Z1, volume.X2, volume.Y2, volume.Z2]; <div class="tool-fields">@for (int axis = 0; axis < 6; axis++) { int coordinate = axis; <label>@Axes[axis]<input type="number" value="@coordinates[axis]" @onchange="args => ViewModel.EditVolume(volumeIndex, coordinate, args.Value?.ToString())" /></label> }<button @onclick="() => ViewModel.RemoveVolume(volumeIndex)">Remove volume @(index + 1)</button></div> }</div><button @onclick="ViewModel.AddVolume">Add volume</button>
+<h3>Locations</h3><div class="tool-fields">@foreach (string key in new[] { "GoLocation", "Entrance" }) { @for (int axis = 0; axis < 3; axis++) { int coordinate = axis; <label>@key @Axes[axis][0]<input type="number" value="@ViewModel.PointField(key, axis)" @onchange="args => ViewModel.SetPointField(key, coordinate, args.Value?.ToString())" /></label> } }</div>
+<div class="tool-fields"><label>Music<input list="region-music" value="@ViewModel.Field("Music")" @onchange='args => ViewModel.SetField("Music", args.Value?.ToString())' /></label><datalist id="region-music">@foreach (string music in RegionSchema.Music) { <option value="@music" /> }</datalist>@foreach (string key in new[] { "MinExpansion", "MaxExpansion" }) { <label>@key<select value="@ViewModel.Field(key)" @onchange="args => ViewModel.SetField(key, args.Value?.ToString())"><option value="">Server default</option>@foreach (string expansion in RegionSchema.Expansions) { <option>@expansion</option> }</select></label> }<label>Rune name<input value='@ViewModel.Field("RuneName")' @onchange='args => ViewModel.SetField("RuneName", args.Value?.ToString())' /></label></div>
+<div class="tool-fields">@foreach (string key in new[] { "NoLogoutDelay", "ExcludeFromParentSpawns", "GuardsDisabled" }) { <label class="inline"><input type="checkbox" checked="@ViewModel.Boolean(key)" @onchange="args => ViewModel.SetBoolean(key, args.Value is true)" />@key</label> }</div>
+@if (ViewModel.Type == "VisibilityRegion") { <h3>3D visibility</h3><div class="tool-fields"><label>Mode<select value='@ViewModel.Field("Visibility3DMode")' @onchange='args => ViewModel.SetField("Visibility3DMode", args.Value?.ToString())'><option value="">Server default</option><option>Inherit</option><option>Enabled</option><option>Disabled</option></select></label><label>Radius (0 = inherit)<input type="number" min="0" max="24" value='@ViewModel.Field("Visibility3DRadius")' @onchange='args => ViewModel.SetField("Visibility3DRadius", args.Value?.ToString(), true)' /></label><label class="inline"><input type="checkbox" checked='@ViewModel.Boolean("Visibility3DCheckLineOfSight")' @onchange='args => ViewModel.SetBoolean("Visibility3DCheckLineOfSight", args.Value is true)' />Check line of sight</label></div> }
+</fieldset>
+<details><summary>Advanced properties (JSON)</summary><p class="muted">Type-specific properties are preserved. Name, map, type, priority and parent use the fields above. Volume JSON changes appear in the preview after saving.</p><textarea class="resource-json" @bind="ViewModel.JsonText" disabled="@(!ViewModel.OwnsSelection)" /></details>
+<div class="toolbar"><CommandButton Command="ViewModel.SaveCommand" CssClass="primary">Save region draft</CommandButton><button @onclick="() => confirmDelete = !confirmDelete" disabled="@(!ViewModel.OwnsSelection)">Delete region…</button>@if (confirmDelete) { <CommandButton Command="ViewModel.DeleteCommand">Confirm deletion draft</CommandButton> }</div>
+}
+else { <p>Select a region or create a new definition.</p> }
+</div></div>
+<p class="muted">Publishing creates a new compatible regions.json. The source file and running server remain unchanged. Deploy the file and restart the server to load it. Dynamically created house and quest regions belong to the running server.</p>
+}
+</section>
+@code {
+    private static readonly string[] Axes = ["X1", "Y1", "Z1", "X2", "Y2", "Z2"];
+    private bool confirmDelete;
+    protected override async Task OnInitializedAsync() { ViewModel.PropertyChanged += Updated; await ViewModel.SourcesCommand.ExecuteAsync(); }
+    private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    private async Task Download() { await ViewModel.ExportCommand.ExecuteAsync(); if (ViewModel.Error is null && ViewModel.Exported is { } exported) await JavaScript.InvokeVoidAsync("uoas.download", "regions.json", Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(exported.Json)), "application/json"); }
+    public void Dispose() => ViewModel.PropertyChanged -= Updated;
+}

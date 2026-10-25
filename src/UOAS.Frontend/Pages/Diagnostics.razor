@@ -1,0 +1,28 @@
+@page "/diagnostics"
+@implements IAsyncDisposable
+@inject ToolViewModel ViewModel
+<PageTitle>Diagnostics · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page"><div class="eyebrow">@ApplicationInfo.ShortName / OPERATIONS</div><h1>Diagnostics</h1>
+    <div class="tool-fields"><label>Minimum level<select @bind="ViewModel.LogLevel">@for (int i = 0; i < Levels.Length; i++) { <option value="@i">@Levels[i]</option> }</select></label><label>Category<input @bind="ViewModel.Category" /></label><label>Message / exception<input @bind="ViewModel.Message" /></label><label class="inline"><input type="checkbox" @bind="ViewModel.ExceptionsOnly" /> Exceptions only</label><CommandButton Command="ViewModel.LogsCommand">Refresh</CommandButton><button @onclick="() => paused = !paused">@(paused ? "Resume" : "Pause")</button><button @onclick="ViewModel.SetCaptureLevelAsync">Use this capture verbosity</button></div>
+    <div class="tool-fields"><label>From (UTC)<input type="datetime-local" @bind="ViewModel.From" /></label><label>Until (UTC)<input type="datetime-local" @bind="ViewModel.Until" /></label><label>Maximum events<select @bind="ViewModel.LogLimit"><option>100</option><option>200</option><option>500</option><option>1000</option></select></label><button @onclick="ViewModel.ClearLogsAsync">Clear this view</button><button @onclick="ViewModel.ResetFiltersAsync">Reset filters</button></div>
+    <p class="muted">Newest @ViewModel.LogLimit matching events · UTC timestamps · clearing this view preserves file logs and other sessions. Capture verbosity affects all sessions and the rotating file log. Buffer: @ViewModel.Status?.Capacity · capture: @(ViewModel.Status is { } status ? Levels[status.CaptureLevel] : "unknown")</p>
+    @if (ViewModel.Error is not null) { <p class="notice error">@ViewModel.Error</p> }
+    <div class="tool-output"><table><thead><tr><th>Time</th><th>Level</th><th>Category</th><th>Message</th></tr></thead><tbody>
+        @foreach (var entry in ViewModel.Logs) { <tr @key="entry.Sequence"><td>@entry.Timestamp.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss.fff")</td><td>@Levels[entry.Level]</td><td>@entry.Category</td><td>@entry.Message<details><summary>Details</summary><pre>@entry.MessageTemplate</pre><pre>@entry.Exception</pre><pre>@entry.Properties</pre></details></td></tr> }
+    </tbody></table></div>
+</section>
+@code {
+    private static readonly string[] Levels = ["Verbose", "Debug", "Information", "Warning", "Error", "Fatal"];
+    private readonly CancellationTokenSource lifetime = new();
+    private Task? loop;
+    private bool paused;
+    protected override async Task OnInitializedAsync() { ViewModel.PropertyChanged += Updated; await ViewModel.LogsCommand.ExecuteAsync(); loop = Poll(); }
+    private async Task Poll()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        try { while (await timer.WaitForNextTickAsync(lifetime.Token)) if (!paused) await ViewModel.LogsCommand.ExecuteAsync(); }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+    }
+    private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    public async ValueTask DisposeAsync() { ViewModel.PropertyChanged -= Updated; lifetime.Cancel(); if (loop is not null) await loop; lifetime.Dispose(); }
+}

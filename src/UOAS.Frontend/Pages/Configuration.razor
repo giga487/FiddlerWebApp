@@ -1,0 +1,15 @@
+@page "/configuration"
+@implements IDisposable
+@inject ToolViewModel ViewModel
+<PageTitle>File inventory · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page"><div class="eyebrow">@ApplicationInfo.ShortName / LIBRARY</div><h1>File inventory</h1><p>Choose a configured library in the workspace bar. The backend reads the library's index files and reports available formats.</p><CommandButton Command="ViewModel.ScanCommand">Scan this library</CommandButton>
+    @if (ViewModel.Error is not null) { <p class="notice error">@ViewModel.Error</p> }
+    @if (ViewModel.Output is not null) { <div class="tool-output"><table><thead><tr><th>Group</th><th>File</th><th>Status</th><th>Bytes</th><th>Details</th></tr></thead><tbody>@foreach (var file in ViewModel.Inventory) { <tr><td>@file.Group</td><td>@file.Name</td><td>@Statuses[file.Status]</td><td>@file.Size</td><td>@file.Detail</td></tr> }</tbody></table></div><details><summary>Full inventory report</summary><pre>@ViewModel.Output</pre></details> }
+    <p class="muted">The backend operator configures libraries under Assets:Libraries. Original files remain read-only; publishing creates a new archive version.</p>
+</section>
+@code {
+    private static readonly string[] Statuses = ["Present", "Missing", "Alternative", "Empty", "Unreadable", "Ambiguous", "Invalid"];
+    protected override void OnInitialized() => ViewModel.PropertyChanged += Updated;
+    private void Updated(object? sender, PropertyChangedEventArgs args) => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => ViewModel.PropertyChanged -= Updated;
+}

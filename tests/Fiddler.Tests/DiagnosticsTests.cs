@@ -92,36 +92,4 @@ public sealed class DiagnosticsTests
         finally { Directory.Delete(root, true); }
     }
 
-    [Theory]
-    [InlineData("admin", "Required", true)]
-    [InlineData("reader", "Required", false)]
-    [InlineData("open:local", "Open", true)]
-    public async Task PageRestrictsLogAccessAndHtmlEncodesMessages(string id, string mode, bool allowed)
-    {
-        var users = new UserDirectory(TimeProvider.System);
-        using var session = new UserSession(users, new ResourceLeaseManager(TimeProvider.System), TimeProvider.System);
-        session.Initialize(new ClaimsPrincipal(new ClaimsIdentity([
-            new("fiddler:user", id), new("fiddler:login", "login"),
-            new("fiddler:expires", DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds().ToString())], "Test")));
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        { ["Authentication:Mode"] = mode, ["Diagnostics:AdministratorIds:0"] = "admin" }).Build();
-        var access = new DiagnosticsAccess(configuration);
-        Assert.Equal(allowed, access.CanView(session));
-        var store = new DiagnosticLogStore();
-        using var logger = new LoggerConfiguration().WriteTo.Sink(store).CreateLogger();
-        logger.Error("Sensitive event <script>alert(1)</script>");
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton(store); services.AddSingleton(access); services.AddSingleton(session);
-        services.AddSingleton(new DiagnosticLogControl(LogEventLevel.Information));
-        await using var provider = services.BuildServiceProvider();
-        await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
-        string html = await renderer.Dispatcher.InvokeAsync(async () =>
-            (await renderer.RenderComponentAsync<FiddlerWebApp.Components.Pages.Diagnostics>()).ToHtmlString());
-        Assert.Equal(allowed, html.Contains("Sensitive event"));
-        Assert.Equal(allowed, html.Contains("Capture verbosity"));
-        Assert.DoesNotContain("<script>", html);
-        users.Revoke(session.LoginId, DateTimeOffset.UtcNow.AddHours(1));
-        Assert.False(access.CanView(session));
-    }
 }

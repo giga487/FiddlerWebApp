@@ -1,6 +1,6 @@
 namespace Fiddler.Formats.Gumps;
 
-public sealed class GumpDocument : IDisposable
+public sealed class GumpDocument : IGumpArchive
 {
     private readonly IGumpArchive source;
     private readonly Dictionary<int, GumpRecord> edits = [];

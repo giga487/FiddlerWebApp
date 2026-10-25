@@ -1,0 +1,13 @@
+@page "/api/openapi/v1.json"
+@page "/api-reference"
+@inject IAssetApi Api
+<PageTitle>API reference · @ApplicationInfo.Name</PageTitle>
+<section class="tool-page"><div class="eyebrow">@ApplicationInfo.ShortName / INTEGRATION</div><h1>Backend API reference</h1><p>Session-based asset APIs used by this WebAssembly frontend.</p>
+    @if (error is not null) { <p class="notice error">@error</p> }
+    <div class="tool-output"><pre>@schema</pre></div>
+</section>
+@code {
+    private string? schema, error;
+    protected override async Task OnInitializedAsync()
+    { try { var json = await Api.GetAsync<System.Text.Json.JsonElement>("api/openapi/v1.json"); schema = System.Text.Json.JsonSerializer.Serialize(json, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }); } catch (HttpRequestException ex) { error = ex.Message; } }
+}
